@@ -63,10 +63,9 @@ function ospreyMethodHandler (schema) {
   app.use(headerHandler(schema.headers));
   app.use(queryHandler(schema.queryParameters));
 
+  // TODO: When no body, discard contents.
   if (schema.body) {
     app.use(bodyHandler(schema.body));
-  } else {
-    app.use(discardBody);
   }
 
   return app;
@@ -396,16 +395,4 @@ function createTypeMiddleware (map) {
 
     return fn ? fn(req, res, next) : next();
   };
-}
-
-/**
- * Discard request bodies.
- *
- * @param {Request}  req
- * @param {Response} res
- * @param {Function} next
- */
-function discardBody (req, res, next) {
-  req.resume();
-  req.on('end', next);
 }
