@@ -1,7 +1,7 @@
 {
   "name": "osprey-method-handler",
   "version": "0.0.1",
-  "description": "",
+  "description": "Middleware for validating requests and responses based on a RAML method object",
   "main": "osprey-method-handler.js",
   "files": [
     "osprey-method-handler.js",
