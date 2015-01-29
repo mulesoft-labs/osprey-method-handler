@@ -33,8 +33,6 @@
     "popsicle": "^0.3.8",
     "popsicle-server": "0.0.1",
     "pre-commit": "0.0.11",
-    "sinon": "^1.12.2",
-    "slow-stream": "0.0.4",
     "which": "^1.0.8"
   },
   "dependencies": {
