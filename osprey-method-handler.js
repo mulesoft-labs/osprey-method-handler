@@ -80,7 +80,7 @@ function ospreyMethodHandler (schema) {
 function queryHandler (queryParameters) {
   // Fast query parameters.
   if (!queryParameters) {
-    return function (req, res, next) {
+    return function ospreyMethodQueryFast (req, res, next) {
       req.url = parseurl(req).pathname;
       req.query = {};
 
@@ -91,7 +91,7 @@ function queryHandler (queryParameters) {
   var sanitize = ramlSanitize(queryParameters);
   var validate = ramlValidate(queryParameters);
 
-  return function (req, res, next) {
+  return function ospreyMethodQuery (req, res, next) {
     var reqUrl = parseurl(req);
     var query = sanitize(querystring.parse(reqUrl.query));
     var result = validate(query);
@@ -121,7 +121,7 @@ function headerHandler (headerParameters) {
   var sanitize = ramlSanitize(headers);
   var validate = ramlValidate(headers);
 
-  return function (req, res, next) {
+  return function ospreyMethodHeader (req, res, next) {
     var headers = sanitize(lowercaseKeys(req.headers));
     var result = validate(headers);
 
@@ -190,7 +190,7 @@ function jsonBodyValidationHandler (str) {
   var tv4 = require('tv4');
   var schema = JSON.parse(str);
 
-  return function (req, res, next) {
+  return function ospreyMethodJson (req, res, next) {
     var result = tv4.validateResult(req.body, schema, true, true);
 
     if (!result.valid) {
@@ -230,7 +230,7 @@ function urlencodedBodyValidationHandler (parameters) {
   var sanitize = ramlSanitize(parameters);
   var validate = ramlValidate(parameters);
 
-  return function (req, res, next) {
+  return function ospreyMethodUrlencoded (req, res, next) {
     var body = sanitize(req.body);
     var result = validate(body);
 
@@ -274,7 +274,7 @@ function xmlBodyValidationHandler (str) {
   var libxml = require('libxmljs');
   var xsdDoc = libxml.parseXml(str);
 
-  return function (req, res, next) {
+  return function ospreyMethodXml (req, res, next) {
     var xmlDoc = libxml.parseXml(req.body);
 
     if (!xmlDoc.validate(xsdDoc)) {
@@ -317,7 +317,7 @@ function formDataBodyHandler (body) {
     sanitizations[key] = ramlSanitize.rule(param);
   });
 
-  app.use(function (req, res, next) {
+  app.use(function ospreyMethodForm (req, res, next) {
     var received = {};
     var busboy = req.form = new Busboy({ headers: req.headers });
 
@@ -384,7 +384,7 @@ function formDataBodyHandler (body) {
 function createTypeMiddleware (map) {
   var types = Object.keys(map);
 
-  return function (req, res, next) {
+  return function ospreyMethodType (req, res, next) {
     var type = is(req, types);
 
     if (!type) {
