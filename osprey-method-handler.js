@@ -8,6 +8,7 @@ var lowercaseKeys = require('lowercase-keys');
 var ramlSanitize = require('raml-sanitize')();
 var ramlValidate = require('raml-validate')();
 var isStream = require('is-stream');
+var values = require('object-values');
 
 /**
  * Get all default headers.
@@ -97,7 +98,7 @@ function queryHandler (queryParameters) {
     var result = validate(query);
 
     if (!result.valid) {
-      return next(createError(400, 'Invalid query parameters'));
+      return next(new ValidationError('query', result.errors));
     }
 
     var qs = querystring.stringify(query);
@@ -126,7 +127,7 @@ function headerHandler (headerParameters) {
     var result = validate(headers);
 
     if (!result.valid) {
-      return next(createError(400, 'Invalid headers'));
+      return next(new ValidationError('headers', result.errors));
     }
 
     // Unsets invalid headers.
@@ -191,10 +192,10 @@ function jsonBodyValidationHandler (str) {
   var schema = JSON.parse(str);
 
   return function ospreyMethodJson (req, res, next) {
-    var result = tv4.validateResult(req.body, schema, true, true);
+    var result = tv4.validateMultiple(req.body, schema);
 
     if (!result.valid) {
-      return next(createError(400, 'Invalid JSON'));
+      return next(new ValidationError('json', result.errors));
     }
 
     return next();
@@ -235,7 +236,7 @@ function urlencodedBodyValidationHandler (parameters) {
     var result = validate(body);
 
     if (!result.valid) {
-      return next(createError(400, 'Invalid form body'));
+      return next(new ValidationError('form', result.errors));
     }
 
     // Discards invalid url encoded parameters.
@@ -278,8 +279,7 @@ function xmlBodyValidationHandler (str) {
     var xmlDoc = libxml.parseXml(req.body);
 
     if (!xmlDoc.validate(xsdDoc)) {
-      // xmlDoc.validationErrors
-      return next(createError(400, 'Invalid XML'));
+      return next(new ValidationError('xml', xmlDoc.validationErrors));
     }
 
     // Assign parsed XML document to the body.
@@ -303,64 +303,101 @@ function formDataBodyHandler (body) {
   var app = router();
   var Busboy = require('busboy');
   var params = body.formParameters;
-  var validations = {};
-  var sanitizations = {};
+  var validators = {};
+  var sanitizers = {};
 
-  // Manually create validations and sanitizations.
+  // Asynchonously sanitizes and validates values.
   Object.keys(params).forEach(function (key) {
     var param = extend(params[key]);
 
-    // Needed to handle repeat errors asynchronously.
+    // Remove repeated validation and sanitization for async handling.
     delete param.repeat;
 
-    validations[key] = ramlValidate.rule(param);
-    sanitizations[key] = ramlSanitize.rule(param);
+    sanitizers[key] = ramlSanitize.rule(param);
+    validators[key] = ramlValidate.rule(param);
   });
 
   app.use(function ospreyMethodForm (req, res, next) {
     var received = {};
+    var errored = false;
     var busboy = req.form = new Busboy({ headers: req.headers });
+    var errors = {};
 
     // Override `emit` to provide validations.
-    busboy.emit = function emit (type, name, field, a, b, c) {
+    busboy.emit = function emit (type, name, value, a, b, c) {
+      var close = type === 'field' ? function () {} : function () {
+        value.resume();
+      };
+
       if (type === 'field' || type === 'file') {
         if (!params.hasOwnProperty(name)) {
-          // Throw away invalid file streams.
-          if (type === 'file') {
-            field.resume();
-          }
-
-          return;
+          return close();
         }
 
-        // Handle repeat parameters as errors.
+        // Sanitize the value before emitting.
+        value = sanitizers[name](value);
+
+        // Check for repeat errors.
         if (received[name] && !params[name].repeat) {
-          busboy.emit('error', createError(400, 'Invalid repeated param'));
+          errors[name] = {
+            valid: false,
+            rule: 'repeat',
+            value: value,
+            key: name
+          };
 
-          return;
+          errored = true;
+
+          return close();
         }
 
+        // Set the value to be already received.
         received[name] = true;
 
-        var value = sanitizations[name](field);
-        var result = validations[name](value);
+        // Check the value is valid.
+        var result = validators[name](value);
 
+        // Collect invalid values.
         if (!result.valid) {
-          busboy.emit('error', createError(400, 'Invalid form data'));
+          errored = true;
+          errors[name] = result;
+        }
 
-          return;
+        // Don't emit when an error has already occured. Check after the
+        // value validation because we want to collect all possible errors.
+        if (errored) {
+          return close();
         }
 
         return Busboy.prototype.emit.call(this, type, name, value, a, b, c);
       }
 
       if (type === 'finish') {
-        var missingParams = Object.keys(params).filter(function (key) {
-          return params[key].required && !received[key];
-        });
+        // Finish emits twice, but is actually done the second time.
+        if (!this._done) {
+          return Busboy.prototype.emit.call(this, 'finish');
+        }
 
-        if (missingParams.length) {
-          busboy.emit('error', createError(400, 'Invalid number of params'));
+        var validationErrors = Object.keys(params)
+          .filter(function (key) {
+            return params[key].required && !received[key];
+          })
+          .map(function (key) {
+            return {
+              valid: false,
+              rule: 'required',
+              value: undefined,
+              key: key
+            };
+          })
+          .concat(values(errors));
+
+        if (validationErrors.length) {
+          Busboy.prototype.emit.call(
+            this,
+            'error',
+            new ValidationError('form', validationErrors)
+          );
 
           return;
         }
@@ -388,7 +425,7 @@ function createTypeMiddleware (map) {
     var type = is(req, types);
 
     if (!type) {
-      return next(createError(415, 'Unknown content type'));
+      return next(createError(415, 'Unsupported media type'));
     }
 
     var fn = map[type];
@@ -396,3 +433,19 @@ function createTypeMiddleware (map) {
     return fn ? fn(req, res, next) : next();
   };
 }
+
+/**
+ * Create a validation error.
+ *
+ * @param {String} type
+ * @param {Array}  errors
+ */
+function ValidationError (type, errors) {
+  createError.BadRequest.call(this, 'Invalid ' + type);
+
+  this.ospreyValidation = true;
+  this.validationType = type;
+  this.validationErrors = errors;
+}
+
+ValidationError.prototype = Object.create(createError.BadRequest.prototype);
