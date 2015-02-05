@@ -13,6 +13,22 @@ Middleware for validating requests and responses based on a [RAML method](https:
 npm install osprey-method-handler --save
 ```
 
+## Features
+
+* Header validation (ignores undocumented headers)
+* Query validation (ignores undocumented parameters)
+* Request body validation
+  * JSON schemas
+  * XML schemas
+  * URL-encoded `formParameters` (ignores undocumented parameters)
+  * Multipart form data `formParameters` (ignores undocumented parameters)
+* Accept content type negotiation (based on defined success response bodies)
+* Automatically parsed request bodies
+  * JSON (`req.body`)
+  * URL-encoded (`req.body`)
+  * XML ([`req.xml`](https://github.com/polotek/libxmljs))
+  * Form Data (`req.form` using [Busboy](https://github.com/mscdex/busboy), but you need to pipe the request into it - `req.pipe(req.form)`)
+
 ## Usage
 
 ```js
