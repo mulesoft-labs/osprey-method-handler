@@ -10,6 +10,7 @@ var ramlValidate = require('raml-validate')();
 var isStream = require('is-stream');
 var values = require('object-values');
 var Negotiator = require('negotiator');
+var JsonSchemaCompatibility = require('json-schema-compatibility');
 
 /**
  * Get all default headers.
@@ -237,7 +238,7 @@ function jsonBodyHandler (body) {
  */
 function jsonBodyValidationHandler (str) {
   var tv4 = require('tv4');
-  var schema = JSON.parse(str);
+  var schema = JsonSchemaCompatibility.v4(JSON.parse(str));
 
   return function ospreyMethodJson (req, res, next) {
     var result = tv4.validateMultiple(req.body, schema);
