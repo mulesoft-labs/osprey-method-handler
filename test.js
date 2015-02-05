@@ -818,6 +818,63 @@ describe('osprey method handler', function () {
       });
     });
   });
+
+  describe('accept', function () {
+    it('should reject requests with invalid accept headers', function () {
+      var app = router();
+
+      app.get('/', handler({
+        responses: {
+          '200': {
+            body: {
+              'text/html': null
+            }
+          }
+        }
+      }));
+
+      return popsicle({
+        url: '/',
+        headers: {
+          'Accept': 'application/json'
+        }
+      })
+        .use(server(createServer(app)))
+        .then(function (res) {
+          expect(res.status).to.equal(406);
+        });
+    });
+
+    it('should accept requests with valid accept headers', function () {
+      var app = router();
+
+      app.get('/', handler({
+        responses: {
+          '200': {
+            body: {
+              'text/html': null
+            }
+          }
+        }
+      }), function (req, res) {
+        expect(req.headers.accept).to.equal('application/json, text/html');
+
+        res.end('success');
+      });
+
+      return popsicle({
+        url: '/',
+        headers: {
+          'Accept': 'application/json, text/html'
+        }
+      })
+        .use(server(createServer(app)))
+        .then(function (res) {
+          expect(res.body).to.equal('success');
+          expect(res.status).to.equal(200);
+        });
+    });
+  });
 });
 
 function createServer (router) {

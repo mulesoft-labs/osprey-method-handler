@@ -9,6 +9,7 @@ var ramlSanitize = require('raml-sanitize')();
 var ramlValidate = require('raml-validate')();
 var isStream = require('is-stream');
 var values = require('object-values');
+var Negotiator = require('negotiator');
 
 /**
  * Get all default headers.
@@ -61,15 +62,62 @@ function ospreyMethodHandler (schema) {
 
   var app = router();
 
-  app.use(headerHandler(schema.headers));
-  app.use(queryHandler(schema.queryParameters));
+  app.use(acceptsHandler(schema.responses));
 
-  // TODO: When no body, discard contents.
   if (schema.body) {
     app.use(bodyHandler(schema.body));
   }
 
+  app.use(headerHandler(schema.headers));
+  app.use(queryHandler(schema.queryParameters));
+
   return app;
+}
+
+/**
+ * Create a HTTP accepts handler.
+ *
+ * @param  {Object}   responses
+ * @return {Function}
+ */
+function acceptsHandler (responses) {
+  var accepts = {};
+
+  // Collect all valid response types.
+  Object.keys(responses || {}).forEach(function (code) {
+    if (isNaN(code) || code > 300) {
+      return;
+    }
+
+    var response = responses[code];
+    var body = response && response.body;
+
+    if (!body) {
+      return;
+    }
+
+    Object.keys(body).forEach(function (type) {
+      accepts[type] = true;
+    });
+  });
+
+  var availableMediaTypes = Object.keys(accepts);
+
+  // The user can accept anything when there are no types. We will be more
+  // strict when the user tries to respond with a body.
+  if (!availableMediaTypes.length) {
+    return noop;
+  }
+
+  return function (req, res, next) {
+    var negotiator = new Negotiator(req);
+
+    if (!negotiator.mediaType(availableMediaTypes)) {
+      return next(createError(406, 'Not Acceptable'));
+    }
+
+    return next();
+  };
 }
 
 /**
@@ -182,7 +230,7 @@ function jsonBodyHandler (body) {
 }
 
 /**
- * Validate bodies as JSON.
+ * Validate JSON bodies.
  *
  * @param  {String}   str
  * @return {Function}
@@ -290,7 +338,7 @@ function xmlBodyValidationHandler (str) {
 }
 
 /**
- * Handle form data requests.
+ * Handle and validate form data requests.
  *
  * @param  {Object}   body
  * @return {Function}
@@ -443,9 +491,19 @@ function createTypeMiddleware (map) {
 function ValidationError (type, errors) {
   createError.BadRequest.call(this, 'Invalid ' + type);
 
-  this.ospreyValidation = true;
-  this.validationType = type;
+  this.ramlValidation = this.validationType = type;
   this.validationErrors = errors;
 }
 
 ValidationError.prototype = Object.create(createError.BadRequest.prototype);
+
+/**
+ * Middleware noop.
+ *
+ * @param {Object}   req
+ * @param {Object}   res
+ * @param {Function} next
+ */
+function noop (req, res, next) {
+  return next();
+}
