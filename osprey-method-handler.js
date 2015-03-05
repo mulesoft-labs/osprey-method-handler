@@ -219,7 +219,7 @@ function bodyHandler (bodies) {
  */
 function jsonBodyHandler (body) {
   if (!body || !body.schema) {
-    throw new TypeError('missing json schema');
+    return noop;
   }
 
   var app = router();
@@ -259,7 +259,7 @@ function jsonBodyValidationHandler (str) {
  */
 function urlencodedBodyHandler (body) {
   if (!body || !body.formParameters) {
-    throw new TypeError('missing url encoded form parameters');
+    return noop;
   }
 
   var app = router();
@@ -303,7 +303,7 @@ function urlencodedBodyValidationHandler (parameters) {
  */
 function xmlBodyHandler (body) {
   if (!body || !body.schema) {
-    throw new TypeError('missing xml schema');
+    return noop;
   }
 
   var app = router();
@@ -346,7 +346,7 @@ function xmlBodyValidationHandler (str) {
  */
 function formDataBodyHandler (body) {
   if (!body || !body.formParameters) {
-    throw new TypeError('missing form data form parameters');
+    return noop;
   }
 
   var app = router();

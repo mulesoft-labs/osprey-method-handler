@@ -169,18 +169,6 @@ describe('osprey method handler', function () {
     describe('json', function () {
       var JSON_SCHEMA = '{"items":{"type":"boolean"}}';
 
-      it('should throw an error when schema is undefined', function () {
-        var app = router();
-
-        expect(function () {
-          app.get('/', handler({
-            body: {
-              'application/json': null
-            }
-          }));
-        }).to.throw(/Missing JSON schema/i);
-      });
-
       it('should reject invalid json', function () {
         var app = router();
 
@@ -238,18 +226,6 @@ describe('osprey method handler', function () {
         '</xs:all></xs:complexType></xs:element>',
         '</xs:schema>'
       ].join('');
-
-      it('should throw an error when schema is undefined', function () {
-        var app = router();
-
-        expect(function () {
-          app.get('/', handler({
-            body: {
-              'text/xml': null
-            }
-          }));
-        }).to.throw(/missing xml schema/i);
-      });
 
       it('should reject invalid xml bodies', function () {
         var app = router();
@@ -313,18 +289,6 @@ describe('osprey method handler', function () {
     });
 
     describe('urlencoded', function () {
-      it('should throw an error when parameters are undefined', function () {
-        var app = router();
-
-        expect(function () {
-          app.get('/', handler({
-            body: {
-              'application/x-www-form-urlencoded': null
-            }
-          }));
-        }).to.throw(/missing url encoded form parameters/i);
-      });
-
       it('should reject invalid forms', function () {
         var app = router();
 
@@ -389,18 +353,6 @@ describe('osprey method handler', function () {
     });
 
     describe('form data', function () {
-      it('should throw an error when parameters are undefined', function () {
-        var app = router();
-
-        expect(function () {
-          app.get('/', handler({
-            body: {
-              'multipart/form-data': null
-            }
-          }));
-        }).to.throw(/missing form data form parameters/i);
-      });
-
       it('should reject invalid forms', function () {
         var app = router();
 
