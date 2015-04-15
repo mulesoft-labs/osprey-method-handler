@@ -24,6 +24,10 @@ require('standard-headers').forEach(function (header) {
   DEFAULT_HEADER_PARAMS[header] = { type: 'string' };
 });
 
+['x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto'].forEach(function (header) {
+  DEFAULT_HEADER_PARAMS[header] = { type: 'string' };
+});
+
 /**
  * Application body parsers and validators.
  *
