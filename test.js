@@ -1,31 +1,28 @@
 /* global describe, it */
 
-/* istanbul ignore next */
-if (!global.Promise) {
-  require('es6-promise').polyfill();
-}
+require('es6-promise').polyfill()
 
-var expect = require('chai').expect;
-var popsicle = require('popsicle');
-var server = require('popsicle-server');
-var router = require('osprey-router');
-var finalhandler = require('finalhandler');
-var fs = require('fs');
-var join = require('path').join;
-var streamEqual = require('stream-equal');
-var handler = require('./');
+var expect = require('chai').expect
+var popsicle = require('popsicle')
+var server = require('popsicle-server')
+var router = require('osprey-router')
+var finalhandler = require('finalhandler')
+var fs = require('fs')
+var join = require('path').join
+var streamEqual = require('stream-equal')
+var handler = require('./')
 
 describe('osprey method handler', function () {
   it('should return a middleware function', function () {
-    var middleware = handler();
+    var middleware = handler()
 
-    expect(middleware).to.be.a('function');
-    expect(middleware.length).to.equal(3);
-  });
+    expect(middleware).to.be.a('function')
+    expect(middleware.length).to.equal(3)
+  })
 
   describe('headers', function () {
     it('should reject invalid headers', function () {
-      var app = router();
+      var app = router()
 
       app.get('/', handler({
         headers: {
@@ -33,7 +30,7 @@ describe('osprey method handler', function () {
             type: 'integer'
           }
         }
-      }));
+      }))
 
       return popsicle({
         url: '/',
@@ -43,12 +40,12 @@ describe('osprey method handler', function () {
       })
         .use(server(createServer(app)))
         .then(function (res) {
-          expect(res.status).to.equal(400);
-        });
-    });
+          expect(res.status).to.equal(400)
+        })
+    })
 
     it('should sanitize headers', function () {
-      var app = router();
+      var app = router()
 
       app.get('/', handler({
         headers: {
@@ -57,10 +54,10 @@ describe('osprey method handler', function () {
           }
         }
       }), function (req, res) {
-        expect(req.headers.date).to.be.an.instanceOf(Date);
+        expect(req.headers.date).to.be.an.instanceOf(Date)
 
-        res.end('success');
-      });
+        res.end('success')
+      })
 
       return popsicle({
         url: '/',
@@ -70,15 +67,15 @@ describe('osprey method handler', function () {
       })
         .use(server(createServer(app)))
         .then(function (res) {
-          expect(res.body).to.equal('success');
-          expect(res.status).to.equal(200);
-        });
-    });
-  });
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
+  })
 
   describe('query parameters', function () {
     it('should reject invalid query parameters', function () {
-      var app = router();
+      var app = router()
 
       app.get('/', handler({
         queryParameters: {
@@ -89,17 +86,17 @@ describe('osprey method handler', function () {
             type: 'integer'
           }
         }
-      }));
+      }))
 
       return popsicle('/?a=value&b=value')
         .use(server(createServer(app)))
         .then(function (res) {
-          expect(res.status).to.equal(400);
-        });
-    });
+          expect(res.status).to.equal(400)
+        })
+    })
 
     it('should filter undefined query parameters', function () {
-      var app = router();
+      var app = router()
 
       app.get('/', handler({
         queryParameters: {
@@ -108,22 +105,22 @@ describe('osprey method handler', function () {
           }
         }
       }), function (req, res) {
-        expect(req.url).to.equal('/?a=value');
-        expect(req.query).to.deep.equal({ a: 'value' });
+        expect(req.url).to.equal('/?a=value')
+        expect(req.query).to.deep.equal({ a: 'value' })
 
-        res.end('success');
-      });
+        res.end('success')
+      })
 
       return popsicle('/?a=value&b=value')
         .use(server(createServer(app)))
         .then(function (res) {
-          expect(res.body).to.equal('success');
-          expect(res.status).to.equal(200);
-        });
-    });
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
 
     it('should remove all unknown query parameters', function () {
-      var app = router();
+      var app = router()
 
       app.get('/', handler({
         queryParameters: {
@@ -132,45 +129,45 @@ describe('osprey method handler', function () {
           }
         }
       }), function (req, res) {
-        expect(req.url).to.equal('/');
-        expect(req.query).to.deep.equal({});
+        expect(req.url).to.equal('/')
+        expect(req.query).to.deep.equal({})
 
-        res.end('success');
-      });
+        res.end('success')
+      })
 
       return popsicle('/?a=value&b=value')
         .use(server(createServer(app)))
         .then(function (res) {
-          expect(res.body).to.equal('success');
-          expect(res.status).to.equal(200);
-        });
-    });
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
 
     it('should support empty query strings', function () {
-      var app = router();
+      var app = router()
 
       app.get('/', handler(), function (req, res) {
-        expect(req.url).to.equal('/');
-        expect(req.query).to.deep.equal({});
+        expect(req.url).to.equal('/')
+        expect(req.query).to.deep.equal({})
 
-        res.end('success');
-      });
+        res.end('success')
+      })
 
       return popsicle('/')
         .use(server(createServer(app)))
         .then(function (res) {
-          expect(res.body).to.equal('success');
-          expect(res.status).to.equal(200);
-        });
-    });
-  });
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
+  })
 
   describe('body', function () {
     describe('json', function () {
-      var JSON_SCHEMA = '{"items":{"type":"boolean"}}';
+      var JSON_SCHEMA = '{"items":{"type":"boolean"}}'
 
       it('should reject invalid json', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
@@ -178,7 +175,7 @@ describe('osprey method handler', function () {
               schema: JSON_SCHEMA
             }
           }
-        }));
+        }))
 
         return popsicle({
           url: '/',
@@ -186,12 +183,12 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.status).to.equal(400);
-          });
-      });
+            expect(res.status).to.equal(400)
+          })
+      })
 
       it('should parse valid json', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
@@ -200,10 +197,10 @@ describe('osprey method handler', function () {
             }
           }
         }), function (req, res) {
-          expect(req.body).to.deep.equal([true, false]);
+          expect(req.body).to.deep.equal([true, false])
 
-          res.end('success');
-        });
+          res.end('success')
+        })
 
         return popsicle({
           url: '/',
@@ -211,11 +208,11 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.body).to.equal('success');
-            expect(res.status).to.equal(200);
-          });
-      });
-    });
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+    })
 
     describe('xml', function () {
       var XML_SCHEMA = [
@@ -225,10 +222,10 @@ describe('osprey method handler', function () {
         '<xs:element name="content" type="xs:string"/>',
         '</xs:all></xs:complexType></xs:element>',
         '</xs:schema>'
-      ].join('');
+      ].join('')
 
       it('should reject invalid xml bodies', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
@@ -236,7 +233,7 @@ describe('osprey method handler', function () {
               schema: XML_SCHEMA
             }
           }
-        }));
+        }))
 
         return popsicle({
           url: '/',
@@ -247,12 +244,12 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.status).to.equal(400);
-          });
-      });
+            expect(res.status).to.equal(400)
+          })
+      })
 
       it('should parse valid xml documents', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
@@ -261,11 +258,11 @@ describe('osprey method handler', function () {
             }
           }
         }), function (req, res) {
-          expect(req.xml.get('/comment/author').text()).to.equal('author');
-          expect(req.xml.get('/comment/content').text()).to.equal('nothing');
+          expect(req.xml.get('/comment/author').text()).to.equal('author')
+          expect(req.xml.get('/comment/content').text()).to.equal('nothing')
 
-          res.end('success');
-        });
+          res.end('success')
+        })
 
         return popsicle({
           url: '/',
@@ -282,15 +279,15 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.body).to.equal('success');
-            expect(res.status).to.equal(200);
-          });
-      });
-    });
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+    })
 
     describe('urlencoded', function () {
       it('should reject invalid forms', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
@@ -302,7 +299,7 @@ describe('osprey method handler', function () {
               }
             }
           }
-        }));
+        }))
 
         return popsicle({
           url: '/',
@@ -313,12 +310,12 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.status).to.equal(400);
-          });
-      });
+            expect(res.status).to.equal(400)
+          })
+      })
 
       it('should parse valid forms', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
@@ -332,10 +329,10 @@ describe('osprey method handler', function () {
             }
           }
         }), function (req, res) {
-          expect(req.body).to.deep.equal({ a: [true, true] });
+          expect(req.body).to.deep.equal({ a: [true, true] })
 
-          res.end('success');
-        });
+          res.end('success')
+        })
 
         return popsicle({
           url: '/',
@@ -346,15 +343,15 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.body).to.equal('success');
-            expect(res.status).to.equal(200);
-          });
-      });
-    });
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+    })
 
     describe('form data', function () {
       it('should reject invalid forms', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
@@ -369,11 +366,11 @@ describe('osprey method handler', function () {
           }
         }), function (req, res, next) {
           req.form.on('error', function (err) {
-            return next(err);
-          });
+            return next(err)
+          })
 
-          req.pipe(req.form);
-        });
+          req.pipe(req.form)
+        })
 
         return popsicle({
           url: '/',
@@ -383,12 +380,12 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.status).to.equal(400);
-          });
-      });
+            expect(res.status).to.equal(400)
+          })
+      })
 
       it('should parse valid forms', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
@@ -403,14 +400,14 @@ describe('osprey method handler', function () {
           }
         }), function (req, res) {
           req.form.on('field', function (name, value) {
-            expect(name).to.equal('username');
-            expect(value).to.equal('blakeembrey');
+            expect(name).to.equal('username')
+            expect(value).to.equal('blakeembrey')
 
-            res.end('success');
-          });
+            res.end('success')
+          })
 
-          req.pipe(req.form);
-        });
+          req.pipe(req.form)
+        })
 
         return popsicle({
           url: '/',
@@ -420,13 +417,13 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.body).to.equal('success');
-            expect(res.status).to.equal(200);
-          });
-      });
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
 
       it('should properly sanitize form values', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
@@ -440,14 +437,14 @@ describe('osprey method handler', function () {
           }
         }), function (req, res) {
           req.form.on('field', function (name, value) {
-            expect(name).to.equal('number');
-            expect(value).to.equal(12345);
+            expect(name).to.equal('number')
+            expect(value).to.equal(12345)
 
-            res.end('success');
-          });
+            res.end('success')
+          })
 
-          req.pipe(req.form);
-        });
+          req.pipe(req.form)
+        })
 
         return popsicle({
           url: '/',
@@ -457,13 +454,13 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.body).to.equal('success');
-            expect(res.status).to.equal(200);
-          });
-      });
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
 
       it('should error with repeated values', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
@@ -476,15 +473,15 @@ describe('osprey method handler', function () {
             }
           }
         }), function (req, res, next) {
-          req.form.on('error', next);
+          req.form.on('error', next)
 
-          req.pipe(req.form);
-        });
+          req.pipe(req.form)
+        })
 
-        var form = popsicle.form();
+        var form = popsicle.form()
 
-        form.append('item', 'abc');
-        form.append('item', '123');
+        form.append('item', 'abc')
+        form.append('item', '123')
 
         return popsicle({
           url: '/',
@@ -492,12 +489,12 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.status).to.equal(400);
-          });
-      });
+            expect(res.status).to.equal(400)
+          })
+      })
 
       it('should error if it did not receive all required values', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
@@ -514,14 +511,14 @@ describe('osprey method handler', function () {
             }
           }
         }), function (req, res, next) {
-          req.form.on('error', next);
+          req.form.on('error', next)
 
-          req.pipe(req.form);
-        });
+          req.pipe(req.form)
+        })
 
-        var form = popsicle.form();
+        var form = popsicle.form()
 
-        form.append('more', '123');
+        form.append('more', '123')
 
         return popsicle({
           url: '/',
@@ -529,12 +526,12 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.status).to.equal(400);
-          });
-      });
+            expect(res.status).to.equal(400)
+          })
+      })
 
       it('should allow files', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
@@ -551,26 +548,26 @@ describe('osprey method handler', function () {
           }
         }), function (req, res) {
           req.form.on('field', function (name, value) {
-            expect(name).to.equal('filename');
-            expect(value).to.equal('LICENSE');
-          });
+            expect(name).to.equal('filename')
+            expect(value).to.equal('LICENSE')
+          })
 
           req.form.on('file', function (name, stream) {
-            expect(name).to.equal('contents');
+            expect(name).to.equal('contents')
 
-            return streamEqual(
+            streamEqual(
               stream,
               fs.createReadStream(join(__dirname, 'LICENSE')),
               function (err, equal) {
-                expect(equal).to.be.true;
+                expect(equal).to.be.true
 
-                return res.end('success');
+                return err ? res.end() : res.end('success')
               }
-            );
-          });
+            )
+          })
 
-          req.pipe(req.form);
-        });
+          req.pipe(req.form)
+        })
 
         return popsicle({
           url: '/',
@@ -581,13 +578,13 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.body).to.equal('success');
-            expect(res.status).to.equal(200);
-          });
-      });
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
 
       it('should ignore unknown files and fields', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
@@ -600,30 +597,30 @@ describe('osprey method handler', function () {
             }
           }
         }), function (req, res) {
-          var callCount = 0;
+          var callCount = 0
 
           function called (name, value) {
-            callCount++;
-            expect(name).to.equal('file');
-            expect(value).to.be.an('object');
+            callCount++
+            expect(name).to.equal('file')
+            expect(value).to.be.an('object')
           }
 
-          req.form.on('field', called);
+          req.form.on('field', called)
 
           req.form.on('file', function (name, stream) {
-            called(name, stream);
+            called(name, stream)
 
-            stream.resume();
-          });
+            stream.resume()
+          })
 
           req.form.on('finish', function () {
-            expect(callCount).to.equal(1);
+            expect(callCount).to.equal(1)
 
-            res.end('success');
-          });
+            res.end('success')
+          })
 
-          req.pipe(req.form);
-        });
+          req.pipe(req.form)
+        })
 
         return popsicle({
           url: '/',
@@ -635,15 +632,15 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.body).to.equal('success');
-            expect(res.status).to.equal(200);
-          });
-      });
-    });
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+    })
 
     describe('unknown', function () {
       it('should reject unknown request types', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
@@ -651,7 +648,7 @@ describe('osprey method handler', function () {
               schema: '{"items":{"type":"boolean"}}'
             }
           }
-        }));
+        }))
 
         return popsicle({
           url: '/',
@@ -662,20 +659,20 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.status).to.equal(415);
-          });
-      });
+            expect(res.status).to.equal(415)
+          })
+      })
 
       it('should pass unknown bodies through when defined', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
             'text/html': null
           }
         }), function (req, res) {
-          res.end('success');
-        });
+          res.end('success')
+        })
 
         return popsicle({
           url: '/',
@@ -686,15 +683,15 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.body).to.equal('success');
-            expect(res.status).to.equal(200);
-          });
-      });
-    });
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+    })
 
     describe('multiple', function () {
       it('should parse as the correct content type', function () {
-        var app = router();
+        var app = router()
 
         app.get('/', handler({
           body: {
@@ -712,28 +709,28 @@ describe('osprey method handler', function () {
             }
           }
         }), function (req, res) {
-          var callCount = 0;
+          var callCount = 0
 
           req.form.on('field', function (name, value) {
-            callCount++;
+            callCount++
 
-            expect(name).to.equal('items');
-            expect(value).to.equal(callCount === 1 ? true : false);
-          });
+            expect(name).to.equal('items')
+            expect(value).to.equal(callCount === 1 ? true : false)
+          })
 
           req.form.on('finish', function () {
-            expect(callCount).to.equal(2);
+            expect(callCount).to.equal(2)
 
-            res.end('success');
-          });
+            res.end('success')
+          })
 
-          req.pipe(req.form);
-        });
+          req.pipe(req.form)
+        })
 
-        var form = popsicle.form();
+        var form = popsicle.form()
 
-        form.append('items', 'true');
-        form.append('items', 'false');
+        form.append('items', 'true')
+        form.append('items', 'false')
 
         return popsicle({
           url: '/',
@@ -741,19 +738,19 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.body).to.equal('success');
-            expect(res.status).to.equal(200);
-          });
-      });
-    });
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+    })
 
     describe('empty', function () {
       it.skip('should discard empty request bodies', function () {
-        var app = router();
+        var app = router()
 
         app.post('/', handler({}), function (req, res) {
-          req.pipe(res);
-        });
+          req.pipe(res)
+        })
 
         return popsicle({
           url: '/',
@@ -764,16 +761,16 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.body).to.equal(null);
-            expect(res.status).to.equal(200);
-          });
-      });
-    });
-  });
+            expect(res.body).to.equal(null)
+            expect(res.status).to.equal(200)
+          })
+      })
+    })
+  })
 
   describe('accept', function () {
     it('should reject requests with invalid accept headers', function () {
-      var app = router();
+      var app = router()
 
       app.get('/', handler({
         responses: {
@@ -783,7 +780,7 @@ describe('osprey method handler', function () {
             }
           }
         }
-      }));
+      }))
 
       return popsicle({
         url: '/',
@@ -793,12 +790,12 @@ describe('osprey method handler', function () {
       })
         .use(server(createServer(app)))
         .then(function (res) {
-          expect(res.status).to.equal(406);
-        });
-    });
+          expect(res.status).to.equal(406)
+        })
+    })
 
     it('should accept requests with valid accept headers', function () {
-      var app = router();
+      var app = router()
 
       app.get('/', handler({
         responses: {
@@ -809,10 +806,10 @@ describe('osprey method handler', function () {
           }
         }
       }), function (req, res) {
-        expect(req.headers.accept).to.equal('application/json, text/html');
+        expect(req.headers.accept).to.equal('application/json, text/html')
 
-        res.end('success');
-      });
+        res.end('success')
+      })
 
       return popsicle({
         url: '/',
@@ -822,15 +819,15 @@ describe('osprey method handler', function () {
       })
         .use(server(createServer(app)))
         .then(function (res) {
-          expect(res.body).to.equal('success');
-          expect(res.status).to.equal(200);
-        });
-    });
-  });
-});
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
+  })
+})
 
 function createServer (router) {
   return function (req, res) {
-    router(req, res, finalhandler(req, res));
-  };
+    router(req, res, finalhandler(req, res))
+  }
 }
