@@ -9,7 +9,7 @@ Middleware for validating requests and responses based on a [RAML method](https:
 
 ## Installation
 
-```sh
+```
 npm install osprey-method-handler --save
 ```
 
@@ -57,6 +57,10 @@ app.post('/users', handler({
   res.send('success');
 });
 ```
+
+## Notes
+
+There is an optional dependency on `libxmljs`. If you want XSD validation, you will need to install it.
 
 ## License
 

@@ -41,7 +41,6 @@
     "http-errors": "^1.2.8",
     "is-stream": "^1.0.1",
     "json-schema-compatibility": "^1.0.1",
-    "libxmljs": "^0.14.0",
     "lowercase-keys": "^1.0.0",
     "negotiator": "^0.5.0",
     "object-values": "^1.0.0",
@@ -54,5 +53,8 @@
     "tv4": "^1.1.9",
     "type-is": "^1.5.5",
     "xtend": "^4.0.0"
+  },
+  "optionalDependencies": {
+    "libxmljs": "^0.14.0"
   }
 }

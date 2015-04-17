@@ -322,7 +322,14 @@ function xmlBodyHandler (body) {
  * @return {Function}
  */
 function xmlBodyValidationHandler (str) {
-  var libxml = require('libxmljs')
+  var libxml
+
+  try {
+    libxml = require('libxmljs')
+  } catch (e) {
+    return noopMiddleware
+  }
+
   var xsdDoc = libxml.parseXml(str)
 
   return function ospreyMethodXml (req, res, next) {
