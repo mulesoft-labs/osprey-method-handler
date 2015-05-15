@@ -56,13 +56,20 @@ module.exports = ospreyMethodHandler
  * Create a middleware request/response handler.
  *
  * @param  {Object}   schema
- * @param  {Object}   options
+ * @param  {String}   path
  * @return {Function}
  */
-function ospreyMethodHandler (schema) {
+function ospreyMethodHandler (schema, path) {
   schema = schema || {}
 
   var app = router()
+
+  // Attach the resource path to every handler for later use.
+  app.use(function (req, res, next) {
+    req.resourcePath = path
+
+    return next()
+  })
 
   app.use(acceptsHandler(schema.responses))
 
