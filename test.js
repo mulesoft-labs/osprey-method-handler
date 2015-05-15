@@ -715,7 +715,7 @@ describe('osprey method handler', function () {
             callCount++
 
             expect(name).to.equal('items')
-            expect(value).to.equal(callCount === 1 ? true : false)
+            expect(value).to.equal(callCount === 1)
           })
 
           req.form.on('finish', function () {
