@@ -155,7 +155,7 @@ function queryHandler (queryParameters) {
     var result = validate(query)
 
     if (!result.valid) {
-      return next(new ValidationError('query', result.errors))
+      return next(createValidationError('query', result.errors))
     }
 
     var qs = querystring.stringify(query)
@@ -184,7 +184,7 @@ function headerHandler (headerParameters) {
     var result = validate(headers)
 
     if (!result.valid) {
-      return next(new ValidationError('headers', result.errors))
+      return next(createValidationError('headers', result.errors))
     }
 
     // Unsets invalid headers.
@@ -252,7 +252,7 @@ function jsonBodyValidationHandler (str) {
     var result = tv4.validateMultiple(req.body, schema)
 
     if (!result.valid) {
-      return next(new ValidationError('json', result.errors))
+      return next(createValidationError('json', result.errors))
     }
 
     return next()
@@ -293,7 +293,7 @@ function urlencodedBodyValidationHandler (parameters) {
     var result = validate(body)
 
     if (!result.valid) {
-      return next(new ValidationError('form', result.errors))
+      return next(createValidationError('form', result.errors))
     }
 
     // Discards invalid url encoded parameters.
@@ -343,7 +343,7 @@ function xmlBodyValidationHandler (str) {
     var xmlDoc = libxml.parseXml(req.body)
 
     if (!xmlDoc.validate(xsdDoc)) {
-      return next(new ValidationError('xml', xmlDoc.validationErrors))
+      return next(createValidationError('xml', xmlDoc.validationErrors))
     }
 
     // Assign parsed XML document to the body.
@@ -456,7 +456,7 @@ function formDataBodyHandler (body) {
           Busboy.prototype.emit.call(
             this,
             'error',
-            new ValidationError('form', validationErrors)
+            createValidationError('form', validationErrors)
           )
 
           return
@@ -497,17 +497,18 @@ function createTypeMiddleware (map) {
 /**
  * Create a validation error.
  *
- * @param {String} type
- * @param {Array}  errors
+ * @param  {String} type
+ * @param  {Array}  errors
+ * @return {Error}
  */
-function ValidationError (type, errors) {
-  createError.BadRequest.call(this, 'Invalid ' + type)
+function createValidationError (type, errors) {
+  var self = createError(400, 'Invalid ' + type)
 
-  this.ramlValidation = this.validationType = type
-  this.validationErrors = errors
+  self.ramlValidation = self.validationType = type
+  self.validationErrors = errors
+
+  return self
 }
-
-ValidationError.prototype = Object.create(createError.BadRequest.prototype)
 
 /**
  * Middleware noop.
