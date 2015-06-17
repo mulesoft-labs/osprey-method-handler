@@ -110,19 +110,21 @@ function acceptsHandler (responses) {
     })
   })
 
-  var availableMediaTypes = Object.keys(accepts)
+  var mediaTypes = Object.keys(accepts)
 
   // The user can accept anything when there are no types. We will be more
   // strict when the user tries to respond with a body.
-  if (!availableMediaTypes.length) {
+  if (!mediaTypes.length) {
     return noopMiddleware
   }
 
   return function (req, res, next) {
     var negotiator = new Negotiator(req)
 
-    if (!negotiator.mediaType(availableMediaTypes)) {
-      return next(createError(406, 'Not Acceptable'))
+    if (!negotiator.mediaType(mediaTypes)) {
+      return next(createError(
+        406, 'Accepted types are ' + mediaTypes.map(JSON.stringify).join(', ')
+      ))
     }
 
     return next()
@@ -514,7 +516,9 @@ function createTypeMiddleware (map) {
     var type = is(req, types)
 
     if (!type) {
-      return next(createError(415, 'Unsupported media type'))
+      return next(createError(
+        415, 'Supported media types are ' + types.map(JSON.stringify).join(', ')
+      ))
     }
 
     var fn = map[type]
