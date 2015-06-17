@@ -166,10 +166,22 @@ describe('osprey method handler', function () {
     describe('json', function () {
       var JSON_SCHEMA = '{"items":{"type":"boolean"}}'
 
+      it('should error creating middleware with invalid json', function () {
+        expect(function () {
+          handler({
+            body: {
+              'application/json': {
+                schema: 'foobar'
+              }
+            }
+          }, '/foo')
+        }).to.throw(TypeError, /^Unable to parse JSON schema \("\/foo"\):/)
+      })
+
       it('should reject invalid json', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'application/json': {
               schema: JSON_SCHEMA
@@ -179,7 +191,33 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: [true, 123]
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+
+      it('should reject invalid request bodies', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              schema: JSON_SCHEMA
+            }
+          }
+        }))
+
+        return popsicle({
+          url: '/',
+          method: 'post',
+          body: 'foobar',
+          headers: {
+            'Content-Type': 'application/json'
+          }
         })
           .use(server(createServer(app)))
           .then(function (res) {
@@ -190,7 +228,7 @@ describe('osprey method handler', function () {
       it('should parse valid json', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'application/json': {
               schema: JSON_SCHEMA
@@ -204,6 +242,7 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: [true, false]
         })
           .use(server(createServer(app)))
@@ -224,10 +263,22 @@ describe('osprey method handler', function () {
         '</xs:schema>'
       ].join('')
 
+      it('should error creating middleware with invalid xml', function () {
+        expect(function () {
+          handler({
+            body: {
+              'text/xml': {
+                schema: 'foobar'
+              }
+            }
+          }, '/foo')
+        }).to.throw(TypeError, /^Unable to parse XML schema \("\/foo"\):/)
+      })
+
       it('should reject invalid xml bodies', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'text/xml': {
               schema: XML_SCHEMA
@@ -237,7 +288,33 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: '<?xml version="1.0"?><comment>A comment</comment>',
+          headers: {
+            'Content-Type': 'text/xml'
+          }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+
+      it('should reject invalid request bodies', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'text/xml': {
+              schema: XML_SCHEMA
+            }
+          }
+        }))
+
+        return popsicle({
+          url: '/',
+          method: 'post',
+          body: 'foobar',
           headers: {
             'Content-Type': 'text/xml'
           }
@@ -251,7 +328,7 @@ describe('osprey method handler', function () {
       it('should parse valid xml documents', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'text/xml': {
               schema: XML_SCHEMA
@@ -266,13 +343,14 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: [
             '<?xml version="1.0"?>',
             '<comment>',
-            '<author>author</author>',
-            '<content>nothing</content>',
+            '  <author>author</author>',
+            '  <content>nothing</content>',
             '</comment>'
-          ].join(''),
+          ].join('\n'),
           headers: {
             'Content-Type': 'text/xml'
           }
@@ -289,7 +367,7 @@ describe('osprey method handler', function () {
       it('should reject invalid forms', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'application/x-www-form-urlencoded': {
               formParameters: {
@@ -303,6 +381,7 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: 'a=true&a=123',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
@@ -317,7 +396,7 @@ describe('osprey method handler', function () {
       it('should parse valid forms', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'application/x-www-form-urlencoded': {
               formParameters: {
@@ -336,6 +415,7 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: 'a=true&a=123',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
@@ -353,7 +433,7 @@ describe('osprey method handler', function () {
       it('should reject invalid forms', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'multipart/form-data': {
               formParameters: {
@@ -374,6 +454,7 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: popsicle.form({
             username: '123'
           })
@@ -387,7 +468,7 @@ describe('osprey method handler', function () {
       it('should parse valid forms', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'multipart/form-data': {
               formParameters: {
@@ -411,6 +492,7 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: popsicle.form({
             username: 'blakeembrey'
           })
@@ -425,7 +507,7 @@ describe('osprey method handler', function () {
       it('should properly sanitize form values', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'multipart/form-data': {
               formParameters: {
@@ -448,6 +530,7 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: popsicle.form({
             number: '12345'
           })
@@ -462,7 +545,7 @@ describe('osprey method handler', function () {
       it('should error with repeated values', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'multipart/form-data': {
               formParameters: {
@@ -485,6 +568,7 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: form
         })
           .use(server(createServer(app)))
@@ -496,7 +580,7 @@ describe('osprey method handler', function () {
       it('should error if it did not receive all required values', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'multipart/form-data': {
               formParameters: {
@@ -522,6 +606,7 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: form
         })
           .use(server(createServer(app)))
@@ -533,7 +618,7 @@ describe('osprey method handler', function () {
       it('should allow files', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'multipart/form-data': {
               formParameters: {
@@ -571,6 +656,7 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: popsicle.form({
             contents: fs.createReadStream(join(__dirname, 'LICENSE')),
             filename: 'LICENSE'
@@ -586,7 +672,7 @@ describe('osprey method handler', function () {
       it('should ignore unknown files and fields', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'multipart/form-data': {
               formParameters: {
@@ -624,6 +710,7 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: popsicle.form({
             file: fs.createReadStream(join(__dirname, 'LICENSE')),
             another: fs.createReadStream(join(__dirname, 'README.md')),
@@ -642,7 +729,7 @@ describe('osprey method handler', function () {
       it('should reject unknown request types', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'application/json': {
               schema: '{"items":{"type":"boolean"}}'
@@ -652,6 +739,7 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: 'test',
           headers: {
             'Content-Type': 'text/html'
@@ -666,7 +754,7 @@ describe('osprey method handler', function () {
       it('should pass unknown bodies through when defined', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'text/html': null
           }
@@ -676,6 +764,7 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: 'test',
           headers: {
             'Content-Type': 'text/html'
@@ -693,7 +782,7 @@ describe('osprey method handler', function () {
       it('should parse as the correct content type', function () {
         var app = router()
 
-        app.get('/', handler({
+        app.post('/', handler({
           body: {
             'application/json': {
               schema: '{"properties":{"items":{"type":"string"}}' +
@@ -734,6 +823,7 @@ describe('osprey method handler', function () {
 
         return popsicle({
           url: '/',
+          method: 'post',
           body: form
         })
           .use(server(createServer(app)))

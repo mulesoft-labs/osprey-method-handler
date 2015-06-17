@@ -71,14 +71,14 @@ function ospreyMethodHandler (schema, path) {
     return next()
   })
 
-  app.use(acceptsHandler(schema.responses))
+  app.use(acceptsHandler(schema.responses, path))
 
   if (schema.body) {
-    app.use(bodyHandler(schema.body))
+    app.use(bodyHandler(schema.body, path))
   }
 
-  app.use(headerHandler(schema.headers))
-  app.use(queryHandler(schema.queryParameters))
+  app.use(headerHandler(schema.headers, path))
+  app.use(queryHandler(schema.queryParameters, path))
 
   return app
 }
@@ -198,9 +198,10 @@ function headerHandler (headerParameters) {
  * Handle incoming request bodies.
  *
  * @param  {Object}   bodies
+ * @param  {String}   path
  * @return {Function}
  */
-function bodyHandler (bodies) {
+function bodyHandler (bodies, path) {
   var map = {}
   var types = Object.keys(bodies)
 
@@ -213,7 +214,7 @@ function bodyHandler (bodies) {
       return
     }
 
-    map[result] = fn(bodies[result])
+    map[result] = fn(bodies[result], path)
   })
 
   return createTypeMiddleware(map)
@@ -223,9 +224,10 @@ function bodyHandler (bodies) {
  * Handle JSON requests.
  *
  * @param  {Object}   body
+ * @param  {String}   path
  * @return {Function}
  */
-function jsonBodyHandler (body) {
+function jsonBodyHandler (body, path) {
   if (!body || !body.schema) {
     return noopMiddleware
   }
@@ -233,7 +235,7 @@ function jsonBodyHandler (body) {
   var app = router()
 
   app.use(require('body-parser').json({ type: [] }))
-  app.use(jsonBodyValidationHandler(body.schema))
+  app.use(jsonBodyValidationHandler(body.schema, path))
 
   return app
 }
@@ -242,11 +244,20 @@ function jsonBodyHandler (body) {
  * Validate JSON bodies.
  *
  * @param  {String}   str
+ * @param  {String}   path
  * @return {Function}
  */
-function jsonBodyValidationHandler (str) {
+function jsonBodyValidationHandler (str, path) {
   var tv4 = require('tv4')
-  var schema = JsonSchemaCompatibility.v4(JSON.parse(str))
+  var schema
+
+  try {
+    schema = JsonSchemaCompatibility.v4(JSON.parse(str))
+  } catch (e) {
+    throw new TypeError(
+      'Unable to parse JSON schema ("' + path + '"):\n\n' + str
+    )
+  }
 
   return function ospreyMethodJson (req, res, next) {
     var result = tv4.validateMultiple(req.body, schema)
@@ -307,9 +318,10 @@ function urlencodedBodyValidationHandler (parameters) {
  * Handle XML requests.
  *
  * @param  {Object}   body
+ * @param  {String}   path
  * @return {Function}
  */
-function xmlBodyHandler (body) {
+function xmlBodyHandler (body, path) {
   if (!body || !body.schema) {
     return noopMiddleware
   }
@@ -317,7 +329,7 @@ function xmlBodyHandler (body) {
   var app = router()
 
   app.use(require('body-parser').text({ type: [] }))
-  app.use(xmlBodyValidationHandler(body.schema))
+  app.use(xmlBodyValidationHandler(body.schema, path))
 
   return app
 }
@@ -326,9 +338,10 @@ function xmlBodyHandler (body) {
  * Validate XML request bodies.
  *
  * @param  {String}   str
+ * @param  {String}   path
  * @return {Function}
  */
-function xmlBodyValidationHandler (str) {
+function xmlBodyValidationHandler (str, path) {
   var libxml
 
   try {
@@ -339,17 +352,31 @@ function xmlBodyValidationHandler (str) {
     return noopMiddleware
   }
 
-  var xsdDoc = libxml.parseXml(str)
+  var schema
+
+  try {
+    schema = libxml.parseXml(str)
+  } catch (e) {
+    throw new TypeError(
+      'Unable to parse XML schema ("' + path + '"):\n\n' + str
+    )
+  }
 
   return function ospreyMethodXml (req, res, next) {
-    var xmlDoc = libxml.parseXml(req.body)
+    var doc
 
-    if (!xmlDoc.validate(xsdDoc)) {
-      return next(createValidationError('xml', xmlDoc.validationErrors))
+    try {
+      doc = libxml.parseXml(req.body)
+    } catch (e) {
+      return next(createError(400, e.message))
+    }
+
+    if (!doc.validate(schema)) {
+      return next(createValidationError('xml', doc.validationErrors))
     }
 
     // Assign parsed XML document to the body.
-    req.xml = xmlDoc
+    req.xml = doc
 
     return next()
   }
