@@ -334,6 +334,8 @@ function xmlBodyValidationHandler (str) {
   try {
     libxml = require('libxmljs')
   } catch (e) {
+    console.warn('Install `libxmljs` for XML validation')
+
     return noopMiddleware
   }
 
