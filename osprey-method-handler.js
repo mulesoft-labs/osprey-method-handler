@@ -10,7 +10,6 @@ var ramlValidate = require('raml-validate')()
 var isStream = require('is-stream')
 var values = require('object-values')
 var Negotiator = require('negotiator')
-var JsonSchemaCompatibility = require('json-schema-compatibility')
 var standardHeaders = require('standard-headers')
 
 /**
@@ -267,10 +266,11 @@ function jsonBodyHandler (body, path) {
  */
 function jsonBodyValidationHandler (str, path) {
   var tv4 = require('tv4')
+  var jsonSchemaCompatibility = require('json-schema-compatibility')
   var schema
 
   try {
-    schema = JsonSchemaCompatibility.v4(JSON.parse(str))
+    schema = jsonSchemaCompatibility.v4(JSON.parse(str))
   } catch (e) {
     throw new TypeError(
       'Unable to parse JSON schema for "' + path + '":\n\n' + str
