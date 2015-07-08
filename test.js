@@ -839,7 +839,7 @@ describe('osprey method handler', function () {
         var app = router()
 
         app.post('/', handler({}), function (req, res) {
-          req.pipe(res)
+          return req._readableState.ended ? res.end() : req.pipe(res)
         })
 
         return popsicle({
