@@ -64,21 +64,17 @@ function ospreyMethodHandler (schema, path) {
 
   var app = router()
 
-  // Attach the resource path to every handler for later use.
+  // Attach the resource path to every validation handler.
   app.use(function (req, res, next) {
     req.resourcePath = path
 
     return next()
   })
 
-  app.use(acceptsHandler(schema.responses, path))
-
-  if (schema.body) {
-    app.use(bodyHandler(schema.body, path))
-  }
-
-  app.use(headerHandler(schema.headers, path))
-  app.use(queryHandler(schema.queryParameters, path))
+  acceptsHandler(app, schema.responses, path)
+  bodyHandler(app, schema.body, path)
+  headerHandler(app, schema.headers, path)
+  queryHandler(app, schema.queryParameters, path)
 
   return app
 }
@@ -89,7 +85,7 @@ function ospreyMethodHandler (schema, path) {
  * @param  {Object}   responses
  * @return {Function}
  */
-function acceptsHandler (responses) {
+function acceptsHandler (app, responses) {
   var accepts = {}
 
   // Collect all valid response types.
@@ -115,10 +111,10 @@ function acceptsHandler (responses) {
   // The user can accept anything when there are no types. We will be more
   // strict when the user tries to respond with a body.
   if (!mediaTypes.length) {
-    return noopMiddleware
+    return
   }
 
-  return function (req, res, next) {
+  app.use(function ospreyAccepts (req, res, next) {
     var negotiator = new Negotiator(req)
 
     if (!negotiator.mediaType(mediaTypes)) {
@@ -128,7 +124,7 @@ function acceptsHandler (responses) {
     }
 
     return next()
-  }
+  })
 }
 
 /**
@@ -137,21 +133,23 @@ function acceptsHandler (responses) {
  * @param  {Object}   queryParameters
  * @return {Function}
  */
-function queryHandler (queryParameters) {
+function queryHandler (app, queryParameters) {
   // Fast query parameters.
   if (!queryParameters) {
-    return function ospreyMethodQueryFast (req, res, next) {
+    app.use(function ospreyQueryFast (req, res, next) {
       req.url = parseurl(req).pathname
       req.query = {}
 
       return next()
-    }
+    })
+
+    return
   }
 
   var sanitize = ramlSanitize(queryParameters)
   var validate = ramlValidate(queryParameters)
 
-  return function ospreyMethodQuery (req, res, next) {
+  app.use(function ospreyQuery (req, res, next) {
     var reqUrl = parseurl(req)
     var query = sanitize(querystring.parse(reqUrl.query))
     var result = validate(query)
@@ -166,7 +164,7 @@ function queryHandler (queryParameters) {
     req.query = query
 
     return next()
-  }
+  })
 }
 
 /**
@@ -175,13 +173,13 @@ function queryHandler (queryParameters) {
  * @param  {Object}   headerParameters
  * @return {Function}
  */
-function headerHandler (headerParameters) {
+function headerHandler (app, headerParameters) {
   var headers = extend(DEFAULT_REQUEST_HEADER_PARAMS, lowercaseKeys(headerParameters))
 
   var sanitize = ramlSanitize(headers)
   var validate = ramlValidate(headers)
 
-  return function ospreyMethodHeader (req, res, next) {
+  app.use(function ospreyMethodHeader (req, res, next) {
     var headers = sanitize(lowercaseKeys(req.headers))
     var result = validate(headers)
 
@@ -193,7 +191,7 @@ function headerHandler (headerParameters) {
     req.headers = headers
 
     return next()
-  }
+  })
 }
 
 /**
@@ -203,8 +201,14 @@ function headerHandler (headerParameters) {
  * @param  {String}   path
  * @return {Function}
  */
-function bodyHandler (bodies, path) {
-  var map = {}
+function bodyHandler (app, bodies, path) {
+  if (!bodies) {
+    app.use(discardBody)
+
+    return
+  }
+
+  var bodyMap = {}
   var types = Object.keys(bodies)
 
   BODY_HANDLERS.forEach(function (handler) {
@@ -212,14 +216,24 @@ function bodyHandler (bodies, path) {
     var fn = handler[1]
     var result = is.is(type, types)
 
-    if (!result) {
-      return
+    if (result) {
+      bodyMap[result] = fn(bodies[result], path)
     }
-
-    map[result] = fn(bodies[result], path)
   })
 
-  return createTypeMiddleware(map)
+  var validTypes = types.map(JSON.stringify).join(', ')
+
+  app.use(function ospreyContentType (req, res, next) {
+    var type = is(req, types)
+
+    if (!type) {
+      return next(createError(415, 'Supported content types are ' + validTypes))
+    }
+
+    var fn = bodyMap[type]
+
+    return fn ? fn(req, res, next) : next()
+  })
 }
 
 /**
@@ -231,7 +245,9 @@ function bodyHandler (bodies, path) {
  */
 function jsonBodyHandler (body, path) {
   if (!body || !body.schema) {
-    return noopMiddleware
+    console.warn('JSON body schema missing for "' + path + '"')
+
+    return
   }
 
   var app = router()
@@ -257,11 +273,11 @@ function jsonBodyValidationHandler (str, path) {
     schema = JsonSchemaCompatibility.v4(JSON.parse(str))
   } catch (e) {
     throw new TypeError(
-      'Unable to parse JSON schema ("' + path + '"):\n\n' + str
+      'Unable to parse JSON schema for "' + path + '":\n\n' + str
     )
   }
 
-  return function ospreyMethodJson (req, res, next) {
+  return function ospreyJsonBody (req, res, next) {
     var result = tv4.validateMultiple(req.body, schema)
 
     if (!result.valid) {
@@ -278,9 +294,11 @@ function jsonBodyValidationHandler (str, path) {
  * @param  {Object}   body
  * @return {Function}
  */
-function urlencodedBodyHandler (body) {
+function urlencodedBodyHandler (body, path) {
   if (!body || !body.formParameters) {
-    return noopMiddleware
+    console.warn('Encoded form parameters missing for "' + path + '"')
+
+    return
   }
 
   var app = router()
@@ -301,7 +319,7 @@ function urlencodedBodyValidationHandler (parameters) {
   var sanitize = ramlSanitize(parameters)
   var validate = ramlValidate(parameters)
 
-  return function ospreyMethodUrlencoded (req, res, next) {
+  return function ospreyUrlencodedBody (req, res, next) {
     var body = sanitize(req.body)
     var result = validate(body)
 
@@ -325,7 +343,9 @@ function urlencodedBodyValidationHandler (parameters) {
  */
 function xmlBodyHandler (body, path) {
   if (!body || !body.schema) {
-    return noopMiddleware
+    console.warn('XML schema missing for "' + path + '"')
+
+    return
   }
 
   var app = router()
@@ -344,27 +364,18 @@ function xmlBodyHandler (body, path) {
  * @return {Function}
  */
 function xmlBodyValidationHandler (str, path) {
-  var libxml
-
-  try {
-    libxml = require('libxmljs')
-  } catch (e) {
-    console.warn('Install `libxmljs` for XML validation')
-
-    return noopMiddleware
-  }
-
+  var libxml = require('libxmljs')
   var schema
 
   try {
     schema = libxml.parseXml(str)
   } catch (e) {
     throw new TypeError(
-      'Unable to parse XML schema ("' + path + '"):\n\n' + str
+      'Unable to parse XML schema for "' + path + '":\n\n' + str
     )
   }
 
-  return function ospreyMethodXml (req, res, next) {
+  return function ospreyXmlBody (req, res, next) {
     var doc
 
     try {
@@ -388,11 +399,14 @@ function xmlBodyValidationHandler (str, path) {
  * Handle and validate form data requests.
  *
  * @param  {Object}   body
+ * @param  {String}   path
  * @return {Function}
  */
-function formDataBodyHandler (body) {
+function formDataBodyHandler (body, path) {
   if (!body || !body.formParameters) {
-    return noopMiddleware
+    console.warn('Multipart form parameters missing for "' + path + '"')
+
+    return
   }
 
   var app = router()
@@ -504,30 +518,6 @@ function formDataBodyHandler (body) {
 }
 
 /**
- * Create a middleware function that accepts requests of the type.
- *
- * @param  {Object}   map
- * @return {Function}
- */
-function createTypeMiddleware (map) {
-  var types = Object.keys(map)
-
-  return function ospreyMethodType (req, res, next) {
-    var type = is(req, types)
-
-    if (!type) {
-      return next(createError(
-        415, 'Supported media types are ' + types.map(JSON.stringify).join(', ')
-      ))
-    }
-
-    var fn = map[type]
-
-    return fn ? fn(req, res, next) : next()
-  }
-}
-
-/**
  * Create a validation error.
  *
  * @param  {String} type
@@ -544,14 +534,16 @@ function createValidationError (type, errors) {
 }
 
 /**
- * Middleware noop.
+ * Discard the request body.
  *
  * @param {Object}   req
  * @param {Object}   res
  * @param {Function} next
  */
-function noopMiddleware (req, res, next) {
-  return next()
+function discardBody (req, res, next) {
+  req.resume()
+  req.on('end', next)
+  req.on('error', next)
 }
 
 /**

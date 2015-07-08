@@ -175,7 +175,7 @@ describe('osprey method handler', function () {
               }
             }
           }, '/foo')
-        }).to.throw(TypeError, /^Unable to parse JSON schema \("\/foo"\):/)
+        }).to.throw(TypeError, /^Unable to parse JSON schema/)
       })
 
       it('should reject invalid json', function () {
@@ -272,7 +272,7 @@ describe('osprey method handler', function () {
               }
             }
           }, '/foo')
-        }).to.throw(TypeError, /^Unable to parse XML schema \("\/foo"\):/)
+        }).to.throw(TypeError, /^Unable to parse XML schema/)
       })
 
       it('should reject invalid xml bodies', function () {
@@ -835,7 +835,7 @@ describe('osprey method handler', function () {
     })
 
     describe('empty', function () {
-      it.skip('should discard empty request bodies', function () {
+      it('should discard empty request bodies', function () {
         var app = router()
 
         app.post('/', handler({}), function (req, res) {
