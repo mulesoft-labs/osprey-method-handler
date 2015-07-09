@@ -858,6 +858,33 @@ describe('osprey method handler', function () {
     })
   })
 
+  describe('wildcard', function () {
+    it('should accept any body', function () {
+      var app = router()
+
+      app.post('/', handler({
+        body: {
+          '*/*': null
+        }
+      }, '/'), function (req, res) {
+        return req.pipe(res)
+      })
+
+      return popsicle({
+        url: '/',
+        body: popsicle.form({
+          file: fs.createReadStream(join(__dirname, 'test.js'))
+        }),
+        method: 'post'
+      })
+        .use(server(createServer(app)))
+        .then(function (res) {
+          expect(res.body).to.be.a.string
+          expect(res.status).to.equal(200)
+        })
+    })
+  })
+
   describe('accept', function () {
     it('should reject requests with invalid accept headers', function () {
       var app = router()
