@@ -364,8 +364,16 @@ function xmlBodyHandler (body, path) {
  * @return {Function}
  */
 function xmlBodyValidationHandler (str, path) {
-  var libxml = require('libxmljs')
   var schema
+  var libxml
+
+  try {
+    libxml = require('libxmljs')
+  } catch (err) {
+    err.message = 'Install "libxmljs" using `npm install libxmljs --save` for XML validation to work'
+
+    throw err
+  }
 
   try {
     schema = libxml.parseXml(str)

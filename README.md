@@ -29,6 +29,8 @@ npm install osprey-method-handler --save
   * XML ([`req.xml`](https://github.com/polotek/libxmljs))
   * Form Data (`req.form` using [Busboy](https://github.com/mscdex/busboy), but you need to pipe the request into it - `req.pipe(req.form)`)
 
+**Please note:** Due to the build time of `libxmljs`, it does not come bundled. If you need XML validation, please install `libxmljs` as a dependency of your own project.
+
 ## Usage
 
 ```js
@@ -63,10 +65,6 @@ app.post('/users', handler({
 The library intercepts incoming requests and does validation. It will respond with `400`, `406` and `415` error instances from [http-errors](https://github.com/jshttp/http-errors). Validation errors are attached to `400` instances and noted using `validationType = 'json' | 'xml' | 'form' | 'query'` and `validationErrors = []` (an array of errors that were found).
 
 To create custom error messages for your application, you can handle the errors using Express, Connect or any other error callback handler.
-
-## Notes
-
-There is an optional dependency on `libxmljs`. If you want XSD validation, you will need to install it.
 
 ## License
 
