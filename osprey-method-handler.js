@@ -1,5 +1,4 @@
 var is = require('type-is')
-var router = require('osprey-router')
 var extend = require('xtend')
 var parseurl = require('parseurl')
 var querystring = require('querystring')
@@ -11,6 +10,7 @@ var isStream = require('is-stream')
 var values = require('object-values')
 var Negotiator = require('negotiator')
 var standardHeaders = require('standard-headers')
+var compose = require('compose-middleware').compose
 
 /**
  * Get all default headers.
@@ -61,21 +61,21 @@ module.exports = ospreyMethodHandler
 function ospreyMethodHandler (schema, path) {
   schema = schema || {}
 
-  var app = router()
+  var middleware = []
 
   // Attach the resource path to every validation handler.
-  app.use(function (req, res, next) {
+  middleware.push(function (req, res, next) {
     req.resourcePath = path
 
     return next()
   })
 
-  acceptsHandler(app, schema.responses, path)
-  bodyHandler(app, schema.body, path)
-  headerHandler(app, schema.headers, path)
-  queryHandler(app, schema.queryParameters, path)
+  middleware.push(acceptsHandler(schema.responses, path))
+  middleware.push(bodyHandler(schema.body, path))
+  middleware.push(headerHandler(schema.headers, path))
+  middleware.push(queryHandler(schema.queryParameters, path))
 
-  return app
+  return compose(middleware)
 }
 
 /**
@@ -84,7 +84,7 @@ function ospreyMethodHandler (schema, path) {
  * @param  {Object}   responses
  * @return {Function}
  */
-function acceptsHandler (app, responses) {
+function acceptsHandler (responses) {
   var accepts = {}
 
   // Collect all valid response types.
@@ -113,7 +113,7 @@ function acceptsHandler (app, responses) {
     return
   }
 
-  app.use(function ospreyAccepts (req, res, next) {
+  return function ospreyAccepts (req, res, next) {
     var negotiator = new Negotiator(req)
 
     if (!negotiator.mediaType(mediaTypes)) {
@@ -123,7 +123,7 @@ function acceptsHandler (app, responses) {
     }
 
     return next()
-  })
+  }
 }
 
 /**
@@ -132,23 +132,21 @@ function acceptsHandler (app, responses) {
  * @param  {Object}   queryParameters
  * @return {Function}
  */
-function queryHandler (app, queryParameters) {
+function queryHandler (queryParameters) {
   // Fast query parameters.
   if (!queryParameters) {
-    app.use(function ospreyQueryFast (req, res, next) {
+    return function ospreyQueryFast (req, res, next) {
       req.url = parseurl(req).pathname
       req.query = {}
 
       return next()
-    })
-
-    return
+    }
   }
 
   var sanitize = ramlSanitize(queryParameters)
   var validate = ramlValidate(queryParameters)
 
-  app.use(function ospreyQuery (req, res, next) {
+  return function ospreyQuery (req, res, next) {
     var reqUrl = parseurl(req)
     var query = sanitize(querystring.parse(reqUrl.query))
     var result = validate(query)
@@ -163,7 +161,7 @@ function queryHandler (app, queryParameters) {
     req.query = query
 
     return next()
-  })
+  }
 }
 
 /**
@@ -172,13 +170,13 @@ function queryHandler (app, queryParameters) {
  * @param  {Object}   headerParameters
  * @return {Function}
  */
-function headerHandler (app, headerParameters) {
+function headerHandler (headerParameters) {
   var headers = extend(DEFAULT_REQUEST_HEADER_PARAMS, lowercaseKeys(headerParameters))
 
   var sanitize = ramlSanitize(headers)
   var validate = ramlValidate(headers)
 
-  app.use(function ospreyMethodHeader (req, res, next) {
+  return function ospreyMethodHeader (req, res, next) {
     var headers = sanitize(lowercaseKeys(req.headers))
     var result = validate(headers)
 
@@ -190,7 +188,7 @@ function headerHandler (app, headerParameters) {
     req.headers = headers
 
     return next()
-  })
+  }
 }
 
 /**
@@ -200,11 +198,9 @@ function headerHandler (app, headerParameters) {
  * @param  {String}   path
  * @return {Function}
  */
-function bodyHandler (app, bodies, path) {
+function bodyHandler (bodies, path) {
   if (!bodies) {
-    app.use(discardBody)
-
-    return
+    return discardBody
   }
 
   var bodyMap = {}
@@ -222,7 +218,7 @@ function bodyHandler (app, bodies, path) {
 
   var validTypes = types.map(JSON.stringify).join(', ')
 
-  app.use(function ospreyContentType (req, res, next) {
+  return function ospreyContentType (req, res, next) {
     var type = is(req, types)
 
     if (!type) {
@@ -232,7 +228,7 @@ function bodyHandler (app, bodies, path) {
     var fn = bodyMap[type]
 
     return fn ? fn(req, res, next) : next()
-  })
+  }
 }
 
 /**
@@ -249,12 +245,10 @@ function jsonBodyHandler (body, path) {
     return
   }
 
-  var app = router()
-
-  app.use(require('body-parser').json({ type: [] }))
-  app.use(jsonBodyValidationHandler(body.schema, path))
-
-  return app
+  return compose([
+    require('body-parser').json({ type: [] }),
+    jsonBodyValidationHandler(body.schema, path)
+  ])
 }
 
 /**
@@ -301,12 +295,10 @@ function urlencodedBodyHandler (body, path) {
     return
   }
 
-  var app = router()
-
-  app.use(require('body-parser').urlencoded({ type: [], extended: false }))
-  app.use(urlencodedBodyValidationHandler(body.formParameters))
-
-  return app
+  return compose([
+    require('body-parser').urlencoded({ type: [], extended: false }),
+    urlencodedBodyValidationHandler(body.formParameters)
+  ])
 }
 
 /**
@@ -348,12 +340,10 @@ function xmlBodyHandler (body, path) {
     return
   }
 
-  var app = router()
-
-  app.use(require('body-parser').text({ type: [] }))
-  app.use(xmlBodyValidationHandler(body.schema, path))
-
-  return app
+  return compose([
+    require('body-parser').text({ type: [] }),
+    xmlBodyValidationHandler(body.schema, path)
+  ])
 }
 
 /**
@@ -417,7 +407,6 @@ function formDataBodyHandler (body, path) {
     return
   }
 
-  var app = router()
   var Busboy = require('busboy')
   var params = body.formParameters
   var validators = {}
@@ -434,7 +423,7 @@ function formDataBodyHandler (body, path) {
     validators[key] = ramlValidate.rule(param)
   })
 
-  app.use(function ospreyMethodForm (req, res, next) {
+  return function ospreyMethodForm (req, res, next) {
     var received = {}
     var errored = false
     var busboy = req.form = new Busboy({ headers: req.headers })
@@ -520,9 +509,7 @@ function formDataBodyHandler (body, path) {
     }
 
     return next()
-  })
-
-  return app
+  }
 }
 
 /**
