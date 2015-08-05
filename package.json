@@ -25,17 +25,17 @@
   },
   "homepage": "https://github.com/mulesoft-labs/osprey-method-handler",
   "devDependencies": {
-    "chai": "^2.1.1",
+    "chai": "^3.2.0",
     "es6-promise": "^2.0.1",
-    "finalhandler": "^0.3.3",
+    "finalhandler": "^0.4.0",
     "istanbul": "^0.3.5",
     "libxmljs": "^0.14.2",
     "mocha": "^2.1.0",
-    "popsicle": "^0.5.12",
     "osprey-router": "^0.1.1",
+    "popsicle": "^1.1.0",
     "popsicle-server": "^1.0.0",
     "pre-commit": "^1.0.5",
-    "standard": "^3.6.1"
+    "standard": "^5.0.0"
   },
   "dependencies": {
     "body-parser": "^1.10.2",
