@@ -175,7 +175,7 @@ describe('osprey method handler', function () {
               }
             }
           }, '/foo')
-        }).to.throw(TypeError, /^Unable to parse JSON schema/)
+        }).to.throw(/^Unable to parse JSON schema/)
       })
 
       it('should reject invalid json', function () {

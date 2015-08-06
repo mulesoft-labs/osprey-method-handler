@@ -265,10 +265,9 @@ function jsonBodyValidationHandler (str, path) {
 
   try {
     schema = jsonSchemaCompatibility.v4(JSON.parse(str))
-  } catch (e) {
-    throw new TypeError(
-      'Unable to parse JSON schema for "' + path + '":\n\n' + str
-    )
+  } catch (err) {
+    err.message = 'Unable to parse JSON schema for "' + path + '": ' + err.message
+    throw err
   }
 
   return function ospreyJsonBody (req, res, next) {
@@ -361,16 +360,14 @@ function xmlBodyValidationHandler (str, path) {
     libxml = require('libxmljs')
   } catch (err) {
     err.message = 'Install "libxmljs" using `npm install libxmljs --save` for XML validation to work'
-
     throw err
   }
 
   try {
     schema = libxml.parseXml(str)
-  } catch (e) {
-    throw new TypeError(
-      'Unable to parse XML schema for "' + path + '":\n\n' + str
-    )
+  } catch (err) {
+    err.message = 'Unable to parse XML schema for "' + path + '": ' + err.message
+    throw err
   }
 
   return function ospreyXmlBody (req, res, next) {
