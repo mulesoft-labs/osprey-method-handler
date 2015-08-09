@@ -272,7 +272,7 @@ describe('osprey method handler', function () {
               }
             }
           }, '/foo')
-        }).to.throw(TypeError, /^Unable to parse XML schema/)
+        }).to.throw(/^Unable to parse XML schema/)
       })
 
       it('should reject invalid xml bodies', function () {
