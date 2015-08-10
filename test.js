@@ -175,7 +175,7 @@ describe('osprey method handler', function () {
               }
             }
           }, '/foo')
-        }).to.throw(/^Unable to parse JSON schema/)
+        }).to.throw(/^Unable to compile JSON schema/)
       })
 
       it('should reject invalid json', function () {
@@ -272,7 +272,7 @@ describe('osprey method handler', function () {
               }
             }
           }, '/foo')
-        }).to.throw(/^Unable to parse XML schema/)
+        }).to.throw(/^Unable to compile XML schema/)
       })
 
       it('should reject invalid xml bodies', function () {

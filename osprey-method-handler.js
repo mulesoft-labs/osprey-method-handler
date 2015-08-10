@@ -11,6 +11,9 @@ var values = require('object-values')
 var Negotiator = require('negotiator')
 var standardHeaders = require('standard-headers')
 var compose = require('compose-middleware').compose
+var Ajv = require('ajv')
+
+var ajv = Ajv({ allErrors: true })
 
 /**
  * Get all default headers.
@@ -259,22 +262,21 @@ function jsonBodyHandler (body, path) {
  * @return {Function}
  */
 function jsonBodyValidationHandler (str, path) {
-  var tv4 = require('tv4')
   var jsonSchemaCompatibility = require('json-schema-compatibility')
-  var schema
+  var validate
 
   try {
-    schema = jsonSchemaCompatibility.v4(JSON.parse(str))
+    validate = ajv.compile(jsonSchemaCompatibility.v4(JSON.parse(str)))
   } catch (err) {
-    err.message = 'Unable to parse JSON schema for "' + path + '": ' + err.message
+    err.message = 'Unable to compile JSON schema for "' + path + '": ' + err.message
     throw err
   }
 
   return function ospreyJsonBody (req, res, next) {
-    var result = tv4.validateMultiple(req.body, schema)
+    var valid = validate(req.body)
 
-    if (!result.valid) {
-      return next(createValidationError('json', result.errors))
+    if (!valid) {
+      return next(createValidationError('json', validate.errors))
     }
 
     return next()
@@ -366,7 +368,7 @@ function xmlBodyValidationHandler (str, path) {
   try {
     schema = libxml.parseXml(str)
   } catch (err) {
-    err.message = 'Unable to parse XML schema for "' + path + '": ' + err.message
+    err.message = 'Unable to compile XML schema for "' + path + '": ' + err.message
     throw err
   }
 
