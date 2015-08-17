@@ -34,9 +34,9 @@ npm install osprey-method-handler --save
 ## Usage
 
 ```js
-var express = require('express');
-var handler = require('osprey-method-handler');
-var app = express();
+var express = require('express')
+var handler = require('osprey-method-handler')
+var app = express()
 
 app.post('/users', handler({
   headers: {},
@@ -56,8 +56,8 @@ app.post('/users', handler({
     }
   }
 }), function (req, res) {
-  res.send('success');
-});
+  res.send('success')
+})
 ```
 
 ### Validation Errors
