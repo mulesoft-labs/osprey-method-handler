@@ -114,7 +114,7 @@ function acceptsHandler (responses, path, method) {
 
   // The user will accept anything when there are no types defined.
   if (!mediaTypes.length) {
-    debug('%s %s: No accepts media types defined in RAML', method, path)
+    debug('%s %s: No accepts media types defined', method, path)
 
     return
   }
@@ -143,14 +143,14 @@ function acceptsHandler (responses, path, method) {
 function queryHandler (queryParameters, path, method) {
   // Fast query parameters.
   if (!queryParameters) {
-    debug('%s %s: Enabling fast query parameters', method, path)
+    debug(
+      '%s %s: Discarding all query parameters. ' +
+      'Define "queryParameters" to receive parameters',
+      method,
+      path
+    )
 
-    return function ospreyQueryFast (req, res, next) {
-      req.url = parseurl(req).pathname
-      req.query = {}
-
-      return next()
-    }
+    return ospreyFastQuery
   }
 
   var sanitize = ramlSanitize(queryParameters)
@@ -213,7 +213,8 @@ function headerHandler (headerParameters) {
 function bodyHandler (bodies, path, method, options) {
   if (!bodies) {
     debug(
-      '%s %s: Enabling body discard. Use "*/*" for body in RAML to accept all content types',
+      '%s %s: Discarding body request stream. ' +
+      'Use "*/*" or set "body" to accept content types',
       method,
       path
     )
@@ -258,7 +259,12 @@ function bodyHandler (bodies, path, method, options) {
  */
 function jsonBodyHandler (body, path, method) {
   if (!body || !body.schema) {
-    debug('%s %s: Body JSON schema missing', method, path)
+    debug(
+      '%s %s: Body JSON schema missing. ' +
+      'Define "schema" to parse and receive JSON',
+      method,
+      path
+    )
 
     return
   }
@@ -309,7 +315,12 @@ function jsonBodyValidationHandler (str, path, method) {
  */
 function urlencodedBodyHandler (body, path, method) {
   if (!body || !body.formParameters) {
-    debug('%s %s: Body URL Encoded form parameters missing', method, path)
+    debug(
+      '%s %s: Body URL Encoded form parameters missing. ' +
+      'Define "formParameters" to parse and receive body parameters',
+      method,
+      path
+    )
 
     return
   }
@@ -355,7 +366,12 @@ function urlencodedBodyValidationHandler (parameters) {
  */
 function xmlBodyHandler (body, path, method) {
   if (!body || !body.schema) {
-    debug('%s %s: Body XML schema missing', method, path)
+    debug(
+      '%s %s: Body XML schema missing. ' +
+      'Define "schema" to parse and receive XML content',
+      method,
+      path
+    )
 
     return
   }
@@ -424,7 +440,12 @@ function xmlBodyValidationHandler (str, path, method) {
  */
 function formDataBodyHandler (body, path, method) {
   if (!body || !body.formParameters) {
-    debug('%s %s: Body multipart form parameters missing', method, path)
+    debug(
+      '%s %s: Body multipart form parameters missing. ' +
+      'Define "formParameters" to parse and receive form content',
+      method,
+      path
+    )
 
     return
   }
@@ -563,6 +584,20 @@ function discardBody (req, res, next) {
   req.resume()
   req.on('end', next)
   req.on('error', next)
+}
+
+/**
+ * Enable fast query parameters (E.g. discard them all).
+ *
+ * @param {Object}   req
+ * @param {Object}   res
+ * @param {Function} next
+ */
+function ospreyFastQuery (req, res, next) {
+  req.url = parseurl(req).pathname
+  req.query = {}
+
+  return next()
 }
 
 /**

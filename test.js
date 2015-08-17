@@ -163,6 +163,40 @@ describe('osprey method handler', function () {
   })
 
   describe('body', function () {
+    describe('general', function () {
+      it('should parse content-type from header and validate', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              schema: '{}'
+            }
+          }
+        }, '/', 'POST'), function (req, res) {
+          expect(req.body).to.deep.equal({ foo: 'bar' })
+
+          res.end('success')
+        })
+
+        return popsicle({
+          url: '/',
+          method: 'post',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: {
+            foo: 'bar'
+          }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+    })
+
     describe('json', function () {
       var JSON_SCHEMA = '{"items":{"type":"boolean"}}'
 
