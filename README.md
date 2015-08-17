@@ -22,6 +22,7 @@ npm install osprey-method-handler --save
   * XML schemas
   * URL-encoded `formParameters` (ignores undocumented parameters)
   * Multipart form data `formParameters` (ignores undocumented parameters)
+  * Discards unknown bodies
 * Accept content type negotiation (based on defined success response bodies)
 * Automatically parsed request bodies
   * JSON (`req.body`)
