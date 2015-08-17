@@ -218,7 +218,7 @@ function bodyHandler (bodies, path, method, options) {
       path
     )
 
-    return discardBody
+    return options.discardUnknownBodies === false ? undefined : discardBody
   }
 
   var bodyMap = {}

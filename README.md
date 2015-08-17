@@ -56,10 +56,16 @@ app.post('/users', handler({
       schema: '...'
     }
   }
-}), function (req, res) {
+}, '/users', 'POST', { /* ... */ }), function (req, res) {
   res.send('success')
 })
 ```
+
+Accepts the RAML schema as the first argument, method and path in subsequent arguments (mostly for debugging) and options as the final argument.
+
+**Options**
+
+* `discardUnknownBodies` Discard undefined request streams (default: `true`)
 
 ### Validation Errors
 

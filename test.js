@@ -856,6 +856,29 @@ describe('osprey method handler', function () {
           })
       })
     })
+
+    it('should disable discard empty request', function () {
+      var app = router()
+
+      app.post(
+        '/',
+        handler(null, '/', 'POST', { discardUnknownBodies: false }),
+        function (req, res) {
+          return req.pipe(res)
+        }
+      )
+
+      return popsicle({
+        url: '/',
+        body: 'test',
+        method: 'post'
+      })
+        .use(server(createServer(app)))
+        .then(function (res) {
+          expect(res.body).to.equal('test')
+          expect(res.status).to.equal(200)
+        })
+    })
   })
 
   describe('wildcard', function () {
