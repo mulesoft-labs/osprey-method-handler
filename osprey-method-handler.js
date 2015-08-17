@@ -91,22 +91,18 @@ function acceptsHandler (responses) {
   var accepts = {}
 
   // Collect all valid response types.
-  Object.keys(responses || {}).forEach(function (code) {
-    if (isNaN(code) || code > 300) {
-      return
-    }
-
-    var response = responses[code]
-    var body = response && response.body
-
-    if (!body) {
-      return
-    }
-
-    Object.keys(body).forEach(function (type) {
-      accepts[type] = true
+  Object.keys(responses || {})
+    .filter(function (code) {
+      return code >= 200 && code < 300
     })
-  })
+    .forEach(function (code) {
+      var response = responses[code]
+      var body = response && response.body || {}
+
+      Object.keys(body).forEach(function (type) {
+        accepts[type] = true
+      })
+    })
 
   var mediaTypes = Object.keys(accepts)
 
