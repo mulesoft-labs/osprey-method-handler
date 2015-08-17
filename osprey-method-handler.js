@@ -12,6 +12,7 @@ var Negotiator = require('negotiator')
 var standardHeaders = require('standard-headers')
 var compose = require('compose-middleware').compose
 var Ajv = require('ajv')
+var debug = require('debug')('osprey-method-handler')
 
 var ajv = Ajv({ allErrors: true })
 
@@ -59,10 +60,13 @@ module.exports = ospreyMethodHandler
  *
  * @param  {Object}   schema
  * @param  {String}   path
+ * @param  {String}   method
+ * @param  {Object}   options
  * @return {Function}
  */
-function ospreyMethodHandler (schema, path) {
+function ospreyMethodHandler (schema, path, method, options) {
   schema = schema || {}
+  options = options || {}
 
   var middleware = []
 
@@ -73,10 +77,10 @@ function ospreyMethodHandler (schema, path) {
     return next()
   })
 
-  middleware.push(acceptsHandler(schema.responses, path))
-  middleware.push(bodyHandler(schema.body, path))
-  middleware.push(headerHandler(schema.headers, path))
-  middleware.push(queryHandler(schema.queryParameters, path))
+  middleware.push(acceptsHandler(schema.responses, path, method, options))
+  middleware.push(bodyHandler(schema.body, path, method, options))
+  middleware.push(headerHandler(schema.headers, path, method, options))
+  middleware.push(queryHandler(schema.queryParameters, path, method, options))
 
   return compose(middleware)
 }
@@ -85,9 +89,11 @@ function ospreyMethodHandler (schema, path) {
  * Create a HTTP accepts handler.
  *
  * @param  {Object}   responses
+ * @param  {String}   path
+ * @param  {String}   method
  * @return {Function}
  */
-function acceptsHandler (responses) {
+function acceptsHandler (responses, path, method) {
   var accepts = {}
 
   // Collect all valid response types.
@@ -106,9 +112,10 @@ function acceptsHandler (responses) {
 
   var mediaTypes = Object.keys(accepts)
 
-  // The user can accept anything when there are no types. We will be more
-  // strict when the user tries to respond with a body.
+  // The user will accept anything when there are no types defined.
   if (!mediaTypes.length) {
+    debug('%s %s: No accepts media types defined in RAML', method, path)
+
     return
   }
 
@@ -129,11 +136,15 @@ function acceptsHandler (responses) {
  * Create query string handling middleware.
  *
  * @param  {Object}   queryParameters
+ * @param  {String}   path
+ * @param  {String}   method
  * @return {Function}
  */
-function queryHandler (queryParameters) {
+function queryHandler (queryParameters, path, method) {
   // Fast query parameters.
   if (!queryParameters) {
+    debug('%s %s: Enabling fast query parameters', method, path)
+
     return function ospreyQueryFast (req, res, next) {
       req.url = parseurl(req).pathname
       req.query = {}
@@ -183,7 +194,7 @@ function headerHandler (headerParameters) {
       return next(createValidationError('headers', result.errors))
     }
 
-    // Unsets invalid headers.
+    // Unsets invalid headers. Does not touch `rawHeaders`.
     req.headers = headers
 
     return next()
@@ -195,10 +206,18 @@ function headerHandler (headerParameters) {
  *
  * @param  {Object}   bodies
  * @param  {String}   path
+ * @param  {String}   method
+ * @param  {Object}   options
  * @return {Function}
  */
-function bodyHandler (bodies, path) {
+function bodyHandler (bodies, path, method, options) {
   if (!bodies) {
+    debug(
+      '%s %s: Enabling body discard. Use "*/*" for body in RAML to accept all content types',
+      method,
+      path
+    )
+
     return discardBody
   }
 
@@ -211,7 +230,7 @@ function bodyHandler (bodies, path) {
     var result = is.is(type, types)
 
     if (result) {
-      bodyMap[result] = fn(bodies[result], path)
+      bodyMap[result] = fn(bodies[result], path, method, options)
     }
   })
 
@@ -237,16 +256,16 @@ function bodyHandler (bodies, path) {
  * @param  {String}   path
  * @return {Function}
  */
-function jsonBodyHandler (body, path) {
+function jsonBodyHandler (body, path, method) {
   if (!body || !body.schema) {
-    console.warn('JSON body schema missing for "' + path + '"')
+    debug('%s %s: Body JSON schema missing', method, path)
 
     return
   }
 
   return compose([
     require('body-parser').json({ type: [] }),
-    jsonBodyValidationHandler(body.schema, path)
+    jsonBodyValidationHandler(body.schema, path, method)
   ])
 }
 
@@ -255,16 +274,17 @@ function jsonBodyHandler (body, path) {
  *
  * @param  {String}   str
  * @param  {String}   path
+ * @param  {String}   method
  * @return {Function}
  */
-function jsonBodyValidationHandler (str, path) {
+function jsonBodyValidationHandler (str, path, method) {
   var jsonSchemaCompatibility = require('json-schema-compatibility')
   var validate
 
   try {
     validate = ajv.compile(jsonSchemaCompatibility.v4(JSON.parse(str)))
   } catch (err) {
-    err.message = 'Unable to compile JSON schema for "' + path + '": ' + err.message
+    err.message = 'Unable to compile JSON schema for ' + method + ' ' + path + ': ' + err.message
     throw err
   }
 
@@ -283,11 +303,13 @@ function jsonBodyValidationHandler (str, path) {
  * Handle url encoded form requests.
  *
  * @param  {Object}   body
+ * @param  {String}   path
+ * @param  {String}   method
  * @return {Function}
  */
-function urlencodedBodyHandler (body, path) {
+function urlencodedBodyHandler (body, path, method) {
   if (!body || !body.formParameters) {
-    console.warn('Encoded form parameters missing for "' + path + '"')
+    debug('%s %s: Body URL Encoded form parameters missing', method, path)
 
     return
   }
@@ -328,18 +350,19 @@ function urlencodedBodyValidationHandler (parameters) {
  *
  * @param  {Object}   body
  * @param  {String}   path
+ * @param  {String}   method
  * @return {Function}
  */
-function xmlBodyHandler (body, path) {
+function xmlBodyHandler (body, path, method) {
   if (!body || !body.schema) {
-    console.warn('XML schema missing for "' + path + '"')
+    debug('%s %s: Body XML schema missing', method, path)
 
     return
   }
 
   return compose([
     require('body-parser').text({ type: [] }),
-    xmlBodyValidationHandler(body.schema, path)
+    xmlBodyValidationHandler(body.schema, path, method)
   ])
 }
 
@@ -348,23 +371,24 @@ function xmlBodyHandler (body, path) {
  *
  * @param  {String}   str
  * @param  {String}   path
+ * @param  {String}   method
  * @return {Function}
  */
-function xmlBodyValidationHandler (str, path) {
+function xmlBodyValidationHandler (str, path, method) {
   var schema
   var libxml
 
   try {
     libxml = require('libxmljs')
   } catch (err) {
-    err.message = 'Install "libxmljs" using `npm install libxmljs --save` for XML validation to work'
+    err.message = 'Install "libxmljs" using `npm install libxmljs --save` for XML validation'
     throw err
   }
 
   try {
     schema = libxml.parseXml(str)
   } catch (err) {
-    err.message = 'Unable to compile XML schema for "' + path + '": ' + err.message
+    err.message = 'Unable to compile XML schema for ' + method + ' ' + path + ': ' + err.message
     throw err
   }
 
@@ -373,8 +397,10 @@ function xmlBodyValidationHandler (str, path) {
 
     try {
       doc = libxml.parseXml(req.body)
-    } catch (e) {
-      return next(createError(400, e.message))
+    } catch (err) {
+      // Add a status code to indicate bad requests automatically.
+      err.status = err.statusCode = 400
+      return next(err)
     }
 
     if (!doc.validate(schema)) {
@@ -393,11 +419,12 @@ function xmlBodyValidationHandler (str, path) {
  *
  * @param  {Object}   body
  * @param  {String}   path
+ * @param  {String}   method
  * @return {Function}
  */
-function formDataBodyHandler (body, path) {
+function formDataBodyHandler (body, path, method) {
   if (!body || !body.formParameters) {
-    console.warn('Multipart form parameters missing for "' + path + '"')
+    debug('%s %s: Body multipart form parameters missing', method, path)
 
     return
   }
@@ -531,6 +558,8 @@ function createValidationError (type, errors) {
  * @param {Function} next
  */
 function discardBody (req, res, next) {
+  debug('%s %s: Discarding request stream', req.method, req.url)
+
   req.resume()
   req.on('end', next)
   req.on('error', next)

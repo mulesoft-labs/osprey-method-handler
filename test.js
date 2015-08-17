@@ -30,7 +30,7 @@ describe('osprey method handler', function () {
             type: 'integer'
           }
         }
-      }))
+      }, '/', 'GET'))
 
       return popsicle({
         url: '/',
@@ -53,7 +53,7 @@ describe('osprey method handler', function () {
             type: 'date'
           }
         }
-      }), function (req, res) {
+      }, '/', 'GET'), function (req, res) {
         expect(req.headers.date).to.be.an.instanceOf(Date)
 
         res.end('success')
@@ -86,7 +86,7 @@ describe('osprey method handler', function () {
             type: 'integer'
           }
         }
-      }))
+      }, '/', 'GET'))
 
       return popsicle('/?a=value&b=value')
         .use(server(createServer(app)))
@@ -104,7 +104,7 @@ describe('osprey method handler', function () {
             type: 'string'
           }
         }
-      }), function (req, res) {
+      }, '/', 'GET'), function (req, res) {
         expect(req.url).to.equal('/?a=value')
         expect(req.query).to.deep.equal({ a: 'value' })
 
@@ -128,7 +128,7 @@ describe('osprey method handler', function () {
             type: 'string'
           }
         }
-      }), function (req, res) {
+      }, '/', 'GET'), function (req, res) {
         expect(req.url).to.equal('/')
         expect(req.query).to.deep.equal({})
 
@@ -146,7 +146,7 @@ describe('osprey method handler', function () {
     it('should support empty query strings', function () {
       var app = router()
 
-      app.get('/', handler(), function (req, res) {
+      app.get('/', handler(null, '/', 'GET'), function (req, res) {
         expect(req.url).to.equal('/')
         expect(req.query).to.deep.equal({})
 
@@ -866,7 +866,7 @@ describe('osprey method handler', function () {
         body: {
           '*/*': null
         }
-      }, '/'), function (req, res) {
+      }, '/', 'POST'), function (req, res) {
         return req.pipe(res)
       })
 
