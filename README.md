@@ -69,7 +69,22 @@ Accepts the RAML schema as the first argument, method and path in subsequent arg
 
 ### Validation Errors
 
-The library intercepts incoming requests and does validation. It will respond with `400`, `406` and `415` error instances from [http-errors](https://github.com/jshttp/http-errors). Validation errors are attached to `400` instances and noted using `validationType = 'json' | 'xml' | 'form' | 'query'` and `validationErrors = []` (an array of errors that were found).
+The library intercepts incoming requests and does validation. It will respond with `400`, `406` or `415` error instances from [http-errors](https://github.com/jshttp/http-errors). Validation errors are attached to `400` instances and noted using `ramlValidation = true` and `validationErrors = []` (an array of errors that were found).
+
+The errors object format is:
+
+```ts
+interface Error {
+  type: 'json' | 'form' | 'headers' | 'query' | 'xml'
+  message: string
+  keyword: string
+  dataPath: string
+  scheme: any
+  meta?: Object
+}
+```
+
+**Please note:** XML validation does not have a way to get the `keyword`, `dataPath` or `scheme`. Instead, it has a `meta` object that contains information from `libxmljs` (`domain`, `code`, `level`, `column`, `line`).
 
 To create custom error messages for your application, you can handle the errors using Express, Connect or any other error callback handler.
 

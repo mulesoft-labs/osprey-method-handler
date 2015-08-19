@@ -21,7 +21,7 @@ describe('osprey method handler', function () {
   })
 
   describe('headers', function () {
-    it('should reject invalid headers', function () {
+    it('should reject invalid headers using standard error format', function () {
       var app = router()
 
       app.get('/', handler({
@@ -31,6 +31,21 @@ describe('osprey method handler', function () {
           }
         }
       }, '/', 'GET'))
+
+      app.use(function (err, req, res, next) {
+        expect(err.ramlValidation).to.be.true
+        expect(err.validationErrors).to.deep.equal([
+          {
+            type: 'header',
+            keyword: 'type',
+            dataPath: 'x-header',
+            message: 'invalid header (type, integer)',
+            schema: 'integer'
+          }
+        ])
+
+        return next(err)
+      })
 
       return popsicle({
         url: '/',
@@ -74,7 +89,7 @@ describe('osprey method handler', function () {
   })
 
   describe('query parameters', function () {
-    it('should reject invalid query parameters', function () {
+    it('should reject invalid query parameters using standard error format', function () {
       var app = router()
 
       app.get('/', handler({
@@ -87,6 +102,21 @@ describe('osprey method handler', function () {
           }
         }
       }, '/', 'GET'))
+
+      app.use(function (err, req, res, next) {
+        expect(err.ramlValidation).to.be.true
+        expect(err.validationErrors).to.deep.equal([
+          {
+            type: 'query',
+            keyword: 'type',
+            dataPath: 'b',
+            message: 'invalid query (type, integer)',
+            schema: 'integer'
+          }
+        ])
+
+        return next(err)
+      })
 
       return popsicle('/?a=value&b=value')
         .use(server(createServer(app)))
@@ -212,7 +242,7 @@ describe('osprey method handler', function () {
         }).to.throw(/^Unable to compile JSON schema/)
       })
 
-      it('should reject invalid json', function () {
+      it('should reject invalid json with standard error format', function () {
         var app = router()
 
         app.post('/', handler({
@@ -222,6 +252,21 @@ describe('osprey method handler', function () {
             }
           }
         }))
+
+        app.use(function (err, req, res, next) {
+          expect(err.ramlValidation).to.be.true
+          expect(err.validationErrors).to.deep.equal([
+            {
+              type: 'json',
+              keyword: 'type',
+              dataPath: '[1]',
+              message: 'should be boolean',
+              schema: 'boolean'
+            }
+          ])
+
+          return next(err)
+        })
 
         return popsicle({
           url: '/',
@@ -309,7 +354,7 @@ describe('osprey method handler', function () {
         }).to.throw(/^Unable to compile XML schema/)
       })
 
-      it('should reject invalid xml bodies', function () {
+      it('should reject invalid xml bodies with standard error format', function () {
         var app = router()
 
         app.post('/', handler({
@@ -320,10 +365,35 @@ describe('osprey method handler', function () {
           }
         }))
 
+        app.use(function (err, req, res, next) {
+          expect(err.ramlValidation).to.be.true
+          expect(err.validationErrors).to.deep.equal([
+            {
+              type: 'xml',
+              message: 'Element \'date\': This element is not expected. Expected is ( content ).\n',
+              meta: {
+                domain: 17,
+                code: 1871,
+                level: 2,
+                column: 0,
+                line: 4
+              }
+            }
+          ])
+
+          return next(err)
+        })
+
         return popsicle({
           url: '/',
           method: 'post',
-          body: '<?xml version="1.0"?><comment>A comment</comment>',
+          body: [
+            '<?xml version="1.0"?>',
+            '<comment>',
+            '  <author>author</author>',
+            '  <date>2015-08-19</date>',
+            '</comment>'
+          ].join('\n'),
           headers: {
             'Content-Type': 'text/xml'
           }
@@ -398,7 +468,7 @@ describe('osprey method handler', function () {
     })
 
     describe('urlencoded', function () {
-      it('should reject invalid forms', function () {
+      it('should reject invalid forms with standard error format', function () {
         var app = router()
 
         app.post('/', handler({
@@ -412,6 +482,21 @@ describe('osprey method handler', function () {
             }
           }
         }))
+
+        app.use(function (err, req, res, next) {
+          expect(err.ramlValidation).to.be.true
+          expect(err.validationErrors).to.deep.equal([
+            {
+              type: 'form',
+              keyword: 'repeat',
+              dataPath: 'a',
+              message: 'invalid form (repeat, false)',
+              schema: false
+            }
+          ])
+
+          return next(err)
+        })
 
         return popsicle({
           url: '/',
@@ -464,7 +549,7 @@ describe('osprey method handler', function () {
     })
 
     describe('form data', function () {
-      it('should reject invalid forms', function () {
+      it('should reject invalid forms using standard error format', function () {
         var app = router()
 
         app.post('/', handler({
@@ -473,17 +558,30 @@ describe('osprey method handler', function () {
               formParameters: {
                 username: {
                   type: 'string',
-                  pattern: '[a-zA-Z]\\w*'
+                  pattern: '^[a-zA-Z]\\w*$'
                 }
               }
             }
           }
         }), function (req, res, next) {
-          req.form.on('error', function (err) {
-            return next(err)
-          })
+          req.form.on('error', next)
 
           req.pipe(req.form)
+        })
+
+        app.use(function (err, req, res, next) {
+          expect(err.ramlValidation).to.be.true
+          expect(err.validationErrors).to.deep.equal([
+            {
+              type: 'form',
+              keyword: 'pattern',
+              dataPath: 'username',
+              message: 'invalid form (pattern, ^[a-zA-Z]\\w*$)',
+              schema: '^[a-zA-Z]\\w*$'
+            }
+          ])
+
+          return next(err)
         })
 
         return popsicle({

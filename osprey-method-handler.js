@@ -144,7 +144,7 @@ function queryHandler (queryParameters, path, method) {
   // Fast query parameters.
   if (!queryParameters) {
     debug(
-      '%s %s: Discarding all query parameters. ' +
+      '%s %s: Discarding all query parameters: ' +
       'Define "queryParameters" to receive parameters',
       method,
       path
@@ -162,7 +162,7 @@ function queryHandler (queryParameters, path, method) {
     var result = validate(query)
 
     if (!result.valid) {
-      return next(createValidationError('query', result.errors))
+      return next(createValidationError(formatRamlErrors(result.errors, 'query')))
     }
 
     var qs = querystring.stringify(query)
@@ -191,7 +191,7 @@ function headerHandler (headerParameters) {
     var result = validate(headers)
 
     if (!result.valid) {
-      return next(createValidationError('headers', result.errors))
+      return next(createValidationError(formatRamlErrors(result.errors, 'header')))
     }
 
     // Unsets invalid headers. Does not touch `rawHeaders`.
@@ -213,7 +213,7 @@ function headerHandler (headerParameters) {
 function bodyHandler (bodies, path, method, options) {
   if (!bodies) {
     debug(
-      '%s %s: Discarding body request stream. ' +
+      '%s %s: Discarding body request stream: ' +
       'Use "*/*" or set "body" to accept content types',
       method,
       path
@@ -260,7 +260,7 @@ function bodyHandler (bodies, path, method, options) {
 function jsonBodyHandler (body, path, method) {
   if (!body || !body.schema) {
     debug(
-      '%s %s: Body JSON schema missing. ' +
+      '%s %s: Body JSON schema missing: ' +
       'Define "schema" to parse and receive JSON',
       method,
       path
@@ -298,7 +298,7 @@ function jsonBodyValidationHandler (str, path, method) {
     var valid = validate(req.body)
 
     if (!valid) {
-      return next(createValidationError('json', validate.errors))
+      return next(createValidationError(formatJsonErrors(validate.errors)))
     }
 
     return next()
@@ -316,7 +316,7 @@ function jsonBodyValidationHandler (str, path, method) {
 function urlencodedBodyHandler (body, path, method) {
   if (!body || !body.formParameters) {
     debug(
-      '%s %s: Body URL Encoded form parameters missing. ' +
+      '%s %s: Body URL Encoded form parameters missing: ' +
       'Define "formParameters" to parse and receive body parameters',
       method,
       path
@@ -346,7 +346,7 @@ function urlencodedBodyValidationHandler (parameters) {
     var result = validate(body)
 
     if (!result.valid) {
-      return next(createValidationError('form', result.errors))
+      return next(createValidationError(formatRamlErrors(result.errors, 'form')))
     }
 
     // Discards invalid url encoded parameters.
@@ -367,7 +367,7 @@ function urlencodedBodyValidationHandler (parameters) {
 function xmlBodyHandler (body, path, method) {
   if (!body || !body.schema) {
     debug(
-      '%s %s: Body XML schema missing. ' +
+      '%s %s: Body XML schema missing: ' +
       'Define "schema" to parse and receive XML content',
       method,
       path
@@ -420,7 +420,7 @@ function xmlBodyValidationHandler (str, path, method) {
     }
 
     if (!doc.validate(schema)) {
-      return next(createValidationError('xml', doc.validationErrors))
+      return next(createValidationError(formatXmlErrors(doc.validationErrors)))
     }
 
     // Assign parsed XML document to the body.
@@ -441,7 +441,7 @@ function xmlBodyValidationHandler (str, path, method) {
 function formDataBodyHandler (body, path, method) {
   if (!body || !body.formParameters) {
     debug(
-      '%s %s: Body multipart form parameters missing. ' +
+      '%s %s: Body multipart form parameters missing: ' +
       'Define "formParameters" to parse and receive form content',
       method,
       path
@@ -492,7 +492,8 @@ function formDataBodyHandler (body, path, method) {
             valid: false,
             rule: 'repeat',
             value: value,
-            key: name
+            key: name,
+            attr: false
           }
 
           errored = true
@@ -504,7 +505,7 @@ function formDataBodyHandler (body, path, method) {
         received[name] = true
 
         // Check the value is valid.
-        var result = validators[name](value)
+        var result = validators[name](value, name)
 
         // Collect invalid values.
         if (!result.valid) {
@@ -532,7 +533,8 @@ function formDataBodyHandler (body, path, method) {
               valid: false,
               rule: 'required',
               value: undefined,
-              key: key
+              key: key,
+              attr: true
             }
           })
           .concat(values(errors))
@@ -541,7 +543,7 @@ function formDataBodyHandler (body, path, method) {
           Busboy.prototype.emit.call(
             this,
             'error',
-            createValidationError('form', validationErrors)
+            createValidationError(formatRamlErrors(validationErrors, 'form'))
           )
 
           return
@@ -562,10 +564,10 @@ function formDataBodyHandler (body, path, method) {
  * @param  {Array}  errors
  * @return {Error}
  */
-function createValidationError (type, errors) {
-  var self = createError(400, 'Invalid ' + type)
+function createValidationError (errors) {
+  var self = createError(400, 'Request failed to validate against RAML definition')
 
-  self.ramlValidation = self.validationType = type
+  self.ramlValidation = true
   self.validationErrors = errors
 
   return self
@@ -604,3 +606,61 @@ function ospreyFastQuery (req, res, next) {
  * Noop.
  */
 function noop () {}
+
+/**
+ * Make RAML validation errors match standard format.
+ *
+ * @param  {Array} errors
+ * @return {Array}
+ */
+function formatRamlErrors (errors, type) {
+  return errors.map(function (error) {
+    return {
+      type: type,
+      dataPath: error.key,
+      keyword: error.rule,
+      schema: error.attr,
+      message: 'invalid ' + type + ' (' + error.rule + ', ' + error.attr + ')'
+    }
+  })
+}
+
+/**
+ * Make JSON validation errors match standard format.
+ *
+ * @param  {Array} errors
+ * @return {Array}
+ */
+function formatJsonErrors (errors) {
+  return errors.map(function (error) {
+    return {
+      type: 'json',
+      keyword: error.keyword,
+      dataPath: error.dataPath,
+      message: error.message,
+      schema: error.schema
+    }
+  })
+}
+
+/**
+ * Make XML validation errors match standard format.
+ *
+ * @param  {Array} errors
+ * @return {Array}
+ */
+function formatXmlErrors (errors) {
+  return errors.map(function (error) {
+    return {
+      type: 'xml',
+      message: error.message,
+      meta: {
+        domain: error.domain,
+        code: error.code,
+        level: error.level,
+        column: error.column,
+        line: error.line
+      }
+    }
+  })
+}
