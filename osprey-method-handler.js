@@ -270,7 +270,7 @@ function jsonBodyHandler (body, path, method) {
   }
 
   return compose([
-    require('body-parser').json({ type: [] }),
+    require('body-parser').json({ type: [], strict: false }),
     jsonBodyValidationHandler(body.schema, path, method)
   ])
 }
