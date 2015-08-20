@@ -620,6 +620,7 @@ function formatRamlErrors (errors, type) {
       dataPath: error.key,
       keyword: error.rule,
       schema: error.attr,
+      data: error.value,
       message: 'invalid ' + type + ' (' + error.rule + ', ' + error.attr + ')'
     }
   })
@@ -638,6 +639,7 @@ function formatJsonErrors (errors) {
       keyword: error.keyword,
       dataPath: error.dataPath,
       message: error.message,
+      data: error.data,
       schema: error.schema
     }
   })

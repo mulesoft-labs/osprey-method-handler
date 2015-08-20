@@ -40,7 +40,8 @@ describe('osprey method handler', function () {
             keyword: 'type',
             dataPath: 'x-header',
             message: 'invalid header (type, integer)',
-            schema: 'integer'
+            schema: 'integer',
+            data: 'abc'
           }
         ])
 
@@ -111,7 +112,8 @@ describe('osprey method handler', function () {
             keyword: 'type',
             dataPath: 'b',
             message: 'invalid query (type, integer)',
-            schema: 'integer'
+            schema: 'integer',
+            data: 'value'
           }
         ])
 
@@ -261,7 +263,8 @@ describe('osprey method handler', function () {
               keyword: 'type',
               dataPath: '[1]',
               message: 'should be boolean',
-              schema: 'boolean'
+              schema: 'boolean',
+              data: 123
             }
           ])
 
@@ -491,7 +494,8 @@ describe('osprey method handler', function () {
               keyword: 'repeat',
               dataPath: 'a',
               message: 'invalid form (repeat, false)',
-              schema: false
+              schema: false,
+              data: ['true', '123']
             }
           ])
 
@@ -577,7 +581,8 @@ describe('osprey method handler', function () {
               keyword: 'pattern',
               dataPath: 'username',
               message: 'invalid form (pattern, ^[a-zA-Z]\\w*$)',
-              schema: '^[a-zA-Z]\\w*$'
+              schema: '^[a-zA-Z]\\w*$',
+              data: '123'
             }
           ])
 
