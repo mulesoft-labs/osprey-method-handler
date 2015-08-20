@@ -79,12 +79,12 @@ interface Error {
   message: string
   keyword: string
   dataPath: string
-  scheme: any
+  schema: any
   meta?: Object
 }
 ```
 
-**Please note:** XML validation does not have a way to get the `keyword`, `dataPath` or `scheme`. Instead, it has a `meta` object that contains information from `libxmljs` (`domain`, `code`, `level`, `column`, `line`).
+**Please note:** XML validation does not have a way to get the `keyword`, `dataPath` or `schema`. Instead, it has a `meta` object that contains information from `libxmljs` (`domain`, `code`, `level`, `column`, `line`).
 
 To create custom error messages for your application, you can handle the errors using Express, Connect or any other error callback handler.
 
