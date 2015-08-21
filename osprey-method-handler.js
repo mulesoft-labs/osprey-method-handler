@@ -17,6 +17,13 @@ var debug = require('debug')('osprey-method-handler')
 var ajv = Ajv({ allErrors: true, verbose: true })
 
 /**
+ * Detect JSON 3 schemas.
+ *
+ * @type {RegExp}
+ */
+var JSON_SCHEMA_03 = /http:\/\/json-schema\.org\/draft-03\/(?:hyper-)?schema#?/
+
+/**
  * Get all default headers.
  *
  * @type {Object}
@@ -285,10 +292,19 @@ function jsonBodyHandler (body, path, method) {
  */
 function jsonBodyValidationHandler (str, path, method) {
   var jsonSchemaCompatibility = require('json-schema-compatibility')
+  var schema
   var validate
 
   try {
-    validate = ajv.compile(jsonSchemaCompatibility.v4(JSON.parse(str)))
+    schema = JSON.parse(str)
+
+    // Convert draft-03 schema to 04.
+    if (JSON_SCHEMA_03.test(schema.$schema)) {
+      schema = jsonSchemaCompatibility.v4(schema)
+      schema.$schema = 'http://json-schema.org/draft-04/schema'
+    }
+
+    validate = ajv.compile(schema)
   } catch (err) {
     err.message = 'Unable to compile JSON schema for ' + method + ' ' + path + ': ' + err.message
     throw err

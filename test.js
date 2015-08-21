@@ -333,6 +333,41 @@ describe('osprey method handler', function () {
             expect(res.status).to.equal(200)
           })
       })
+
+      it('should validate using draft 03', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              schema: JSON.stringify({
+                required: true,
+                $schema: 'http://json-schema.org/draft-03/schema',
+                type: 'object',
+                properties: {
+                  name: {
+                    type: 'string',
+                    required: true
+                  }
+                }
+              })
+            }
+          }
+        }))
+
+        return popsicle({
+          url: '/',
+          method: 'post',
+          body: '{"url":"http://example.com"}',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
     })
 
     describe('xml', function () {
