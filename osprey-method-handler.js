@@ -21,7 +21,7 @@ var ajv = Ajv({ allErrors: true, verbose: true })
  *
  * @type {RegExp}
  */
-var JSON_SCHEMA_03 = /http:\/\/json-schema\.org\/draft-03\/(?:hyper-)?schema#?/
+var JSON_SCHEMA_03 = /^http:\/\/json-schema\.org\/draft-03\/(?:hyper-)?schema/i
 
 /**
  * Get all default headers.
