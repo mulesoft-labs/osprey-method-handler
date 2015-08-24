@@ -67,6 +67,10 @@ Accepts the RAML schema as the first argument, method and path in subsequent arg
 
 * `discardUnknownBodies` Discard undefined request streams (default: `true`)
 
+### Adding JSON schemas
+
+If you are using external JSON schemas with `$ref`, you can add them to the module before you compile the middleware. Use `handler.addJsonSchema(schema, key)` to compile automatically when used.
+
 ### Validation Errors
 
 The library intercepts incoming requests and does validation. It will respond with `400`, `406` or `415` error instances from [http-errors](https://github.com/jshttp/http-errors). Validation errors are attached to `400` instances and noted using `ramlValidation = true` and `validationErrors = []` (an array of errors that were found).
