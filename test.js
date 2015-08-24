@@ -261,7 +261,7 @@ describe('osprey method handler', function () {
             {
               type: 'json',
               keyword: 'type',
-              dataPath: '[1]',
+              dataPath: '/1',
               message: 'should be boolean',
               schema: 'boolean',
               data: 123
