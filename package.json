@@ -17,7 +17,18 @@
     "type": "git",
     "url": "git://github.com/mulesoft-labs/osprey-method-handler.git"
   },
-  "keywords": [],
+  "keywords": [
+    "raml",
+    "osprey",
+    "method",
+    "resource",
+    "handler",
+    "middleware",
+    "express",
+    "json",
+    "schemas",
+    "validation"
+  ],
   "author": "MuleSoft, Inc.",
   "license": "Apache-2.0",
   "bugs": {
