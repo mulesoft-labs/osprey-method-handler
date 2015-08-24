@@ -61,6 +61,17 @@ ramlValidate.TYPES.file = function (stream) {
  * Export `ospreyMethodHandler`.
  */
 module.exports = ospreyMethodHandler
+module.exports.addJsonSchema = addJsonSchema
+
+/**
+ * Expose a method to add JSON schemas before compilation.
+ *
+ * @param {Object} schema
+ * @param {String} key
+ */
+function addJsonSchema (schema, key) {
+  ajv.addSchema(schema, key)
+}
 
 /**
  * Create a middleware request/response handler.

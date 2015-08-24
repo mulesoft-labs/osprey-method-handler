@@ -10,7 +10,7 @@ var finalhandler = require('finalhandler')
 var fs = require('fs')
 var join = require('path').join
 var streamEqual = require('stream-equal')
-var handler = require('./')
+var handler = require('../')
 
 describe('osprey method handler', function () {
   it('should return a middleware function', function () {
@@ -366,6 +366,91 @@ describe('osprey method handler', function () {
           .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
+          })
+      })
+
+      it('should support external $ref when added', function () {
+        var schema = JSON.stringify({
+          $schema: 'http://json-schema.org/draft-04/schema#',
+          title: 'Product set',
+          type: 'array',
+          items: {
+            title: 'Product',
+            type: 'object',
+            properties: {
+              id: {
+                description: 'The unique identifier for a product',
+                type: 'number'
+              },
+              name: {
+                type: 'string'
+              },
+              price: {
+                type: 'number',
+                minimum: 0,
+                exclusiveMinimum: true
+              },
+              tags: {
+                type: 'array',
+                items: {
+                  type: 'string'
+                },
+                minItems: 1,
+                uniqueItems: true
+              },
+              dimensions: {
+                type: 'object',
+                properties: {
+                  length: { type: 'number' },
+                  width: { type: 'number' },
+                  height: { type: 'number' }
+                },
+                required: ['length', 'width', 'height']
+              },
+              warehouseLocation: {
+                description: 'Coordinates of the warehouse with the product',
+                $ref: 'http://json-schema.org/geo'
+              }
+            },
+            required: ['id', 'name', 'price']
+          }
+        })
+
+        var app = router()
+
+        // Register GeoJSON schema.
+        handler.addJsonSchema(
+          require('./vendor/geo.json'),
+          'http://json-schema.org/geo'
+        )
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              schema: schema
+            }
+          }
+        }), function (req, res) {
+          res.end('success')
+        })
+
+        return popsicle({
+          url: '/',
+          method: 'post',
+          body: [{
+            id: 123,
+            name: 'Product',
+            price: 12.34,
+            tags: ['foo', 'bar'],
+            warehouseLocation: {
+              latitude: 123,
+              longitude: 456
+            }
+          }]
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.status).to.equal(200)
           })
       })
     })
@@ -814,7 +899,7 @@ describe('osprey method handler', function () {
 
             streamEqual(
               stream,
-              fs.createReadStream(join(__dirname, 'LICENSE')),
+              fs.createReadStream(join(__dirname, '..', 'LICENSE')),
               function (err, equal) {
                 expect(equal).to.be.true
 
@@ -830,7 +915,7 @@ describe('osprey method handler', function () {
           url: '/',
           method: 'post',
           body: popsicle.form({
-            contents: fs.createReadStream(join(__dirname, 'LICENSE')),
+            contents: fs.createReadStream(join(__dirname, '..', 'LICENSE')),
             filename: 'LICENSE'
           })
         })
@@ -884,8 +969,8 @@ describe('osprey method handler', function () {
           url: '/',
           method: 'post',
           body: popsicle.form({
-            file: fs.createReadStream(join(__dirname, 'LICENSE')),
-            another: fs.createReadStream(join(__dirname, 'README.md')),
+            file: fs.createReadStream(join(__dirname, '..', 'LICENSE')),
+            another: fs.createReadStream(join(__dirname, '..', 'README.md')),
             random: 'hello world'
           })
         })
@@ -1017,7 +1102,7 @@ describe('osprey method handler', function () {
         return popsicle({
           url: '/',
           body: popsicle.form({
-            file: fs.createReadStream(join(__dirname, 'test.js'))
+            file: fs.createReadStream(join(__dirname, 'index.js'))
           }),
           method: 'post'
         })
@@ -1068,7 +1153,7 @@ describe('osprey method handler', function () {
       return popsicle({
         url: '/',
         body: popsicle.form({
-          file: fs.createReadStream(join(__dirname, 'test.js'))
+          file: fs.createReadStream(join(__dirname, 'index.js'))
         }),
         method: 'post'
       })
