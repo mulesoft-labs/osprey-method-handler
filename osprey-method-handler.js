@@ -95,10 +95,26 @@ function ospreyMethodHandler (schema, path, method, options) {
     return next()
   })
 
-  middleware.push(acceptsHandler(schema.responses, path, method, options))
-  middleware.push(bodyHandler(schema.body, path, method, options))
-  middleware.push(headerHandler(schema.headers, path, method, options))
-  middleware.push(queryHandler(schema.queryParameters, path, method, options))
+  var accepts = acceptsHandler(schema.responses, path, method, options)
+  var body = bodyHandler(schema.body, path, method, options)
+  var header = headerHandler(schema.headers, path, method, options)
+  var query = queryHandler(schema.queryParameters, path, method, options)
+
+  if (accepts) {
+    middleware.push(accepts)
+  }
+
+  if (body) {
+    middleware.push(body)
+  }
+
+  if (header) {
+    middleware.push(header)
+  }
+
+  if (query) {
+    middleware.push(query)
+  }
 
   return compose(middleware)
 }
