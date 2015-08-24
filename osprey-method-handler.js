@@ -17,7 +17,7 @@ var debug = require('debug')('osprey-method-handler')
 var ajv = Ajv({ allErrors: true, verbose: true, jsonPointers: true })
 
 /**
- * Detect JSON 3 schemas.
+ * Detect JSON schema v3.
  *
  * @type {RegExp}
  */
