@@ -34,7 +34,7 @@ describe('osprey method handler', function () {
 
       app.use(function (err, req, res, next) {
         expect(err.ramlValidation).to.be.true
-        expect(err.validationErrors).to.deep.equal([
+        expect(err.requestErrors).to.deep.equal([
           {
             type: 'header',
             keyword: 'type',
@@ -106,7 +106,7 @@ describe('osprey method handler', function () {
 
       app.use(function (err, req, res, next) {
         expect(err.ramlValidation).to.be.true
-        expect(err.validationErrors).to.deep.equal([
+        expect(err.requestErrors).to.deep.equal([
           {
             type: 'query',
             keyword: 'type',
@@ -257,7 +257,7 @@ describe('osprey method handler', function () {
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.be.true
-          expect(err.validationErrors).to.deep.equal([
+          expect(err.requestErrors).to.deep.equal([
             {
               type: 'json',
               keyword: 'type',
@@ -490,7 +490,7 @@ describe('osprey method handler', function () {
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.be.true
-          expect(err.validationErrors).to.deep.equal([
+          expect(err.requestErrors).to.deep.equal([
             {
               type: 'xml',
               message: 'Element \'date\': This element is not expected. Expected is ( content ).\n',
@@ -608,7 +608,7 @@ describe('osprey method handler', function () {
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.be.true
-          expect(err.validationErrors).to.deep.equal([
+          expect(err.requestErrors).to.deep.equal([
             {
               type: 'form',
               keyword: 'repeat',
@@ -695,7 +695,7 @@ describe('osprey method handler', function () {
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.be.true
-          expect(err.validationErrors).to.deep.equal([
+          expect(err.requestErrors).to.deep.equal([
             {
               type: 'form',
               keyword: 'pattern',

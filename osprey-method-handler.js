@@ -610,8 +610,8 @@ function formDataBodyHandler (body, path, method) {
 function createValidationError (errors) {
   var self = createError(400, 'Request failed to validate against RAML definition')
 
+  self.requestErrors = errors
   self.ramlValidation = true
-  self.validationErrors = errors
 
   return self
 }
