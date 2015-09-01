@@ -289,9 +289,11 @@ function bodyHandler (bodies, path, method, options) {
  *
  * @param  {Object}   body
  * @param  {String}   path
+ * @param  {String}   method
+ * @param  {Object}   options
  * @return {Function}
  */
-function jsonBodyHandler (body, path, method) {
+function jsonBodyHandler (body, path, method, options) {
   if (!body || !body.schema) {
     debug(
       '%s %s: Body JSON schema missing: ' +
@@ -303,8 +305,15 @@ function jsonBodyHandler (body, path, method) {
     return
   }
 
+  var jsonBodyParser = require('body-parser').json({
+    type: [],
+    strict: false,
+    limit: options.limit,
+    reviver: options.reviver
+  })
+
   return compose([
-    require('body-parser').json({ type: [], strict: false }),
+    jsonBodyParser,
     jsonBodyValidationHandler(body.schema, path, method)
   ])
 }
@@ -354,9 +363,10 @@ function jsonBodyValidationHandler (str, path, method) {
  * @param  {Object}   body
  * @param  {String}   path
  * @param  {String}   method
+ * @param  {Object}   options
  * @return {Function}
  */
-function urlencodedBodyHandler (body, path, method) {
+function urlencodedBodyHandler (body, path, method, options) {
   if (!body || !body.formParameters) {
     debug(
       '%s %s: Body URL Encoded form parameters missing: ' +
@@ -368,8 +378,15 @@ function urlencodedBodyHandler (body, path, method) {
     return
   }
 
+  var urlencodedBodyParser = require('body-parser').urlencoded({
+    type: [],
+    extended: false,
+    limit: options.limit,
+    parameterLimit: options.parameterLimit
+  })
+
   return compose([
-    require('body-parser').urlencoded({ type: [], extended: false }),
+    urlencodedBodyParser,
     urlencodedBodyValidationHandler(body.formParameters)
   ])
 }
@@ -405,9 +422,10 @@ function urlencodedBodyValidationHandler (parameters) {
  * @param  {Object}   body
  * @param  {String}   path
  * @param  {String}   method
+ * @param  {Object}   options
  * @return {Function}
  */
-function xmlBodyHandler (body, path, method) {
+function xmlBodyHandler (body, path, method, options) {
   if (!body || !body.schema) {
     debug(
       '%s %s: Body XML schema missing: ' +
@@ -420,7 +438,7 @@ function xmlBodyHandler (body, path, method) {
   }
 
   return compose([
-    require('body-parser').text({ type: [] }),
+    require('body-parser').text({ type: [], limit: options.limit }),
     xmlBodyValidationHandler(body.schema, path, method)
   ])
 }
