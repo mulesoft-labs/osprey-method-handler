@@ -217,6 +217,30 @@ describe('osprey method handler', function () {
           expect(res.status).to.equal(200)
         })
     })
+
+    it('should unescape querystring keys', function () {
+      var app = router()
+
+      app.get('/', handler({
+        queryParameters: {
+          'foo[bar]': {
+            type: 'string'
+          }
+        }
+      }, '/', 'GET'), function (req, res) {
+        expect(req.url).to.equal('/?foo%5Bbar%5D=test')
+        expect(req.query).to.deep.equal({ 'foo[bar]': 'test' })
+
+        res.end('success')
+      })
+
+      return popsicle('/?foo[bar]=test')
+        .use(server(createServer(app)))
+        .then(function (res) {
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
   })
 
   describe('body', function () {
