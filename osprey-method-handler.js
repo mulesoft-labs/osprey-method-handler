@@ -192,7 +192,7 @@ function queryHandler (queryParameters, path, method) {
 
   return function ospreyQuery (req, res, next) {
     var reqUrl = parseurl(req)
-    var query = sanitize(querystring.parse(reqUrl.query))
+    var query = sanitize(parseQuerystring(reqUrl.query))
     var result = validate(query)
 
     if (!result.valid) {
@@ -206,6 +206,13 @@ function queryHandler (queryParameters, path, method) {
 
     return next()
   }
+}
+
+/**
+ * Parse query strings with support for array syntax (E.g. `a[]=1&a[]=2`).
+ */
+function parseQuerystring (query) {
+  return querystring.parse(query.replace(/(?:%5B|\[)\d*(?:%5D|\])\=/ig, '='))
 }
 
 /**

@@ -192,6 +192,31 @@ describe('osprey method handler', function () {
           expect(res.status).to.equal(200)
         })
     })
+
+    it('should parse requests using array query syntax', function () {
+      var app = router()
+
+      app.get('/', handler({
+        queryParameters: {
+          foo: {
+            type: 'string',
+            repeat: true
+          }
+        }
+      }, '/', 'GET'), function (req, res) {
+        expect(req.url).to.equal('/?foo=a&foo=b&foo=c')
+        expect(req.query).to.deep.equal({ foo: ['a', 'b', 'c'] })
+
+        res.end('success')
+      })
+
+      return popsicle('/?foo[]=a&foo[1]=b&foo[22]=c')
+        .use(server(createServer(app)))
+        .then(function (res) {
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
   })
 
   describe('body', function () {
