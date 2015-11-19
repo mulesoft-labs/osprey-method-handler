@@ -153,12 +153,15 @@ function acceptsHandler (responses, path, method) {
     return
   }
 
+  var validTypes = mediaTypes.map(JSON.stringify).join(', ')
+  var expectedMessage = mediaTypes.length === 1 ? validTypes : 'one of ' + validTypes
+
   return function ospreyAccepts (req, res, next) {
     var negotiator = new Negotiator(req)
 
     if (!negotiator.mediaType(mediaTypes)) {
       return next(createError(
-        406, 'Accepted types are ' + mediaTypes.map(JSON.stringify).join(', ')
+        406, 'Unsupported accept header "' + req.headers.accept + '", expected ' + expectedMessage
       ))
     }
 
@@ -281,12 +284,13 @@ function bodyHandler (bodies, path, method, options) {
   })
 
   var validTypes = types.map(JSON.stringify).join(', ')
+  var expectedMessage = types.length === 1 ? validTypes : 'one of ' + validTypes
 
   return function ospreyContentType (req, res, next) {
     var type = is(req, types)
 
     if (!type) {
-      return next(createError(415, 'Supported content types are ' + validTypes))
+      return next(createError(415, 'Unsupported content-type header "' + req.headers['content-type'] + '", expected ' + expectedMessage))
     }
 
     var fn = bodyMap[type]
