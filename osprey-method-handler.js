@@ -212,6 +212,10 @@ function queryHandler (queryParameters, path, method) {
  * Parse query strings with support for array syntax (E.g. `a[]=1&a[]=2`).
  */
 function parseQuerystring (query) {
+  if (query == null) {
+    return {}
+  }
+
   return querystring.parse(query.replace(/(?:%5B|\[)\d*(?:%5D|\])\=/ig, '='))
 }
 

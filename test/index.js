@@ -178,7 +178,13 @@ describe('osprey method handler', function () {
     it('should support empty query strings', function () {
       var app = router()
 
-      app.get('/', handler(null, '/', 'GET'), function (req, res) {
+      app.get('/', handler({
+        queryParameters: {
+          test: {
+            type: 'boolean'
+          }
+        }
+      }, '/', 'GET'), function (req, res) {
         expect(req.url).to.equal('/')
         expect(req.query).to.deep.equal({})
 
