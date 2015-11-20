@@ -659,6 +659,17 @@ function createValidationError (errors) {
 function discardBody (req, res, next) {
   debug('%s %s: Discarding request stream', req.method, req.url)
 
+  Object.defineProperty(req, 'body', {
+    get: function () {
+      var url = req.originalUrl || req.url
+
+      console.error(
+        'This request body was discarded by Osprey. Use "*/*" or populate ' +
+        '"body" in your RAML document to accept data with "' + url + '"'
+      )
+    }
+  })
+
   req.resume()
   req.on('end', next)
   req.on('error', next)
