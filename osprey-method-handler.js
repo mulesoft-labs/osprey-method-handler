@@ -670,6 +670,11 @@ function discardBody (req, res, next) {
     }
   })
 
+  // TODO(blakeembrey): Make sure this doesn't break in future node versions.
+  if (req._readableState.ended) {
+    return next()
+  }
+
   req.resume()
   req.on('end', next)
   req.on('error', next)
