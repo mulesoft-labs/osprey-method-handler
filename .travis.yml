@@ -5,6 +5,10 @@ notifications:
     on_success: never
     on_failure: change
 
+install:
+  - npm install
+  - npm install libxmljs || true
+
 node_js:
   - "0.10"
   - "0.12"

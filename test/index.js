@@ -510,140 +510,142 @@ describe('osprey method handler', function () {
       })
     })
 
-    describe('xml', function () {
-      var XML_SCHEMA = [
-        '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">',
-        '<xs:element name="comment"><xs:complexType><xs:all>',
-        '<xs:element name="author" type="xs:string"/>',
-        '<xs:element name="content" type="xs:string"/>',
-        '</xs:all></xs:complexType></xs:element>',
-        '</xs:schema>'
-      ].join('')
+    if (hasModule('libxmljs')) {
+      describe('xml', function () {
+        var XML_SCHEMA = [
+          '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">',
+          '<xs:element name="comment"><xs:complexType><xs:all>',
+          '<xs:element name="author" type="xs:string"/>',
+          '<xs:element name="content" type="xs:string"/>',
+          '</xs:all></xs:complexType></xs:element>',
+          '</xs:schema>'
+        ].join('')
 
-      it('should error creating middleware with invalid xml', function () {
-        expect(function () {
-          handler({
+        it('should error creating middleware with invalid xml', function () {
+          expect(function () {
+            handler({
+              body: {
+                'text/xml': {
+                  schema: 'foobar'
+                }
+              }
+            }, '/foo')
+          }).to.throw(/^Unable to compile XML schema/)
+        })
+
+        it('should reject invalid xml bodies with standard error format', function () {
+          var app = router()
+
+          app.post('/', handler({
             body: {
               'text/xml': {
-                schema: 'foobar'
+                schema: XML_SCHEMA
               }
             }
-          }, '/foo')
-        }).to.throw(/^Unable to compile XML schema/)
-      })
+          }))
 
-      it('should reject invalid xml bodies with standard error format', function () {
-        var app = router()
+          app.use(function (err, req, res, next) {
+            expect(err.ramlValidation).to.be.true
+            expect(err.requestErrors).to.deep.equal([
+              {
+                type: 'xml',
+                message: 'Element \'date\': This element is not expected. Expected is ( content ).\n',
+                meta: {
+                  domain: 17,
+                  code: 1871,
+                  level: 2,
+                  column: 0,
+                  line: 4
+                }
+              }
+            ])
 
-        app.post('/', handler({
-          body: {
-            'text/xml': {
-              schema: XML_SCHEMA
+            return next(err)
+          })
+
+          return popsicle({
+            url: '/',
+            method: 'post',
+            body: [
+              '<?xml version="1.0"?>',
+              '<comment>',
+              '  <author>author</author>',
+              '  <date>2015-08-19</date>',
+              '</comment>'
+            ].join('\n'),
+            headers: {
+              'Content-Type': 'text/xml'
             }
-          }
-        }))
+          })
+            .use(server(createServer(app)))
+            .then(function (res) {
+              expect(res.status).to.equal(400)
+            })
+        })
 
-        app.use(function (err, req, res, next) {
-          expect(err.ramlValidation).to.be.true
-          expect(err.requestErrors).to.deep.equal([
-            {
-              type: 'xml',
-              message: 'Element \'date\': This element is not expected. Expected is ( content ).\n',
-              meta: {
-                domain: 17,
-                code: 1871,
-                level: 2,
-                column: 0,
-                line: 4
+        it('should reject invalid request bodies', function () {
+          var app = router()
+
+          app.post('/', handler({
+            body: {
+              'text/xml': {
+                schema: XML_SCHEMA
               }
             }
-          ])
+          }))
 
-          return next(err)
-        })
-
-        return popsicle({
-          url: '/',
-          method: 'post',
-          body: [
-            '<?xml version="1.0"?>',
-            '<comment>',
-            '  <author>author</author>',
-            '  <date>2015-08-19</date>',
-            '</comment>'
-          ].join('\n'),
-          headers: {
-            'Content-Type': 'text/xml'
-          }
-        })
-          .use(server(createServer(app)))
-          .then(function (res) {
-            expect(res.status).to.equal(400)
-          })
-      })
-
-      it('should reject invalid request bodies', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'text/xml': {
-              schema: XML_SCHEMA
+          return popsicle({
+            url: '/',
+            method: 'post',
+            body: 'foobar',
+            headers: {
+              'Content-Type': 'text/xml'
             }
-          }
-        }))
-
-        return popsicle({
-          url: '/',
-          method: 'post',
-          body: 'foobar',
-          headers: {
-            'Content-Type': 'text/xml'
-          }
-        })
-          .use(server(createServer(app)))
-          .then(function (res) {
-            expect(res.status).to.equal(400)
           })
-      })
+            .use(server(createServer(app)))
+            .then(function (res) {
+              expect(res.status).to.equal(400)
+            })
+        })
 
-      it('should parse valid xml documents', function () {
-        var app = router()
+        it('should parse valid xml documents', function () {
+          var app = router()
 
-        app.post('/', handler({
-          body: {
-            'text/xml': {
-              schema: XML_SCHEMA
+          app.post('/', handler({
+            body: {
+              'text/xml': {
+                schema: XML_SCHEMA
+              }
             }
-          }
-        }), function (req, res) {
-          expect(req.xml.get('/comment/author').text()).to.equal('author')
-          expect(req.xml.get('/comment/content').text()).to.equal('nothing')
+          }), function (req, res) {
+            expect(req.xml.get('/comment/author').text()).to.equal('author')
+            expect(req.xml.get('/comment/content').text()).to.equal('nothing')
 
-          res.end('success')
-        })
-
-        return popsicle({
-          url: '/',
-          method: 'post',
-          body: [
-            '<?xml version="1.0"?>',
-            '<comment>',
-            '  <author>author</author>',
-            '  <content>nothing</content>',
-            '</comment>'
-          ].join('\n'),
-          headers: {
-            'Content-Type': 'text/xml'
-          }
-        })
-          .use(server(createServer(app)))
-          .then(function (res) {
-            expect(res.body).to.equal('success')
-            expect(res.status).to.equal(200)
+            res.end('success')
           })
+
+          return popsicle({
+            url: '/',
+            method: 'post',
+            body: [
+              '<?xml version="1.0"?>',
+              '<comment>',
+              '  <author>author</author>',
+              '  <content>nothing</content>',
+              '</comment>'
+            ].join('\n'),
+            headers: {
+              'Content-Type': 'text/xml'
+            }
+          })
+            .use(server(createServer(app)))
+            .then(function (res) {
+              expect(res.body).to.equal('success')
+              expect(res.status).to.equal(200)
+            })
+        })
       })
-    })
+    }
 
     describe('urlencoded', function () {
       it('should reject invalid forms with standard error format', function () {
@@ -1282,4 +1284,17 @@ function createServer (router) {
   return function (req, res) {
     router(req, res, finalhandler(req, res))
   }
+}
+
+/**
+ * Check for module existence.
+ */
+function hasModule (module) {
+  try {
+    require.resolve(module)
+  } catch (err) {
+    return false
+  }
+
+  return true
 }
