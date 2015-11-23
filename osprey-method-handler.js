@@ -95,25 +95,41 @@ function ospreyMethodHandler (schema, path, method, options) {
     return next()
   })
 
-  var accepts = acceptsHandler(schema.responses, path, method, options)
-  var body = bodyHandler(schema.body, path, method, options)
-  var header = headerHandler(schema.headers, path, method, options)
-  var query = queryHandler(schema.queryParameters, path, method, options)
+  // Headers *always* have a default handler.
+  middleware.push(headerHandler(schema.headers, path, method, options))
 
-  if (accepts) {
-    middleware.push(accepts)
+  if (schema.body) {
+    middleware.push(bodyHandler(schema.body, path, method, options))
+  } else {
+    if (options.discardUnknownBodies !== false) {
+      debug(
+        '%s %s: Discarding body request stream: ' +
+        'Use "*/*" or set "body" to accept content types',
+        method,
+        path
+      )
+
+      middleware.push(discardBody)
+    }
   }
 
-  if (body) {
-    middleware.push(body)
+  if (schema.responses) {
+    middleware.push(acceptsHandler(schema.responses, path, method, options))
   }
 
-  if (header) {
-    middleware.push(header)
-  }
+  if (schema.queryParameters) {
+    middleware.push(queryHandler(schema.queryParameters, path, method, options))
+  } else {
+    if (options.discardUnknownQueryParameters !== false) {
+      debug(
+        '%s %s: Discarding all query parameters: ' +
+        'Define "queryParameters" to receive parameters',
+        method,
+        path
+      )
 
-  if (query) {
-    middleware.push(query)
+      middleware.push(ospreyFastQuery)
+    }
   }
 
   return compose(middleware)
@@ -175,21 +191,10 @@ function acceptsHandler (responses, path, method) {
  * @param  {Object}   queryParameters
  * @param  {String}   path
  * @param  {String}   method
+ * @param  {Object}   options
  * @return {Function}
  */
-function queryHandler (queryParameters, path, method) {
-  // Fast query parameters.
-  if (!queryParameters) {
-    debug(
-      '%s %s: Discarding all query parameters: ' +
-      'Define "queryParameters" to receive parameters',
-      method,
-      path
-    )
-
-    return ospreyFastQuery
-  }
-
+function queryHandler (queryParameters, path, method, options) {
   var sanitize = ramlSanitize(queryParameters)
   var validate = ramlValidate(queryParameters)
 
@@ -204,8 +209,12 @@ function queryHandler (queryParameters, path, method) {
 
     var qs = querystring.stringify(query)
 
-    req.url = reqUrl.pathname + (qs ? '?' + qs : '')
-    req.query = query
+    if (options.discardUnknownQueryParameters !== false) {
+      req.url = reqUrl.pathname + (qs ? '?' + qs : '')
+      req.query = query
+    } else {
+      req.query = extend(req.query, query)
+    }
 
     return next()
   }
@@ -226,9 +235,12 @@ function parseQuerystring (query) {
  * Create a request header handling middleware.
  *
  * @param  {Object}   headerParameters
+ * @param  {String}   path
+ * @param  {String}   method
+ * @param  {Object}   options
  * @return {Function}
  */
-function headerHandler (headerParameters) {
+function headerHandler (headerParameters, path, method, options) {
   var headers = extend(DEFAULT_REQUEST_HEADER_PARAMS, lowercaseKeys(headerParameters))
 
   var sanitize = ramlSanitize(headers)
@@ -243,7 +255,7 @@ function headerHandler (headerParameters) {
     }
 
     // Unsets invalid headers. Does not touch `rawHeaders`.
-    req.headers = headers
+    req.headers = options.discardUnknownHeaders === false ? extend(req.headers, headers) : headers
 
     return next()
   }
@@ -259,17 +271,6 @@ function headerHandler (headerParameters) {
  * @return {Function}
  */
 function bodyHandler (bodies, path, method, options) {
-  if (!bodies) {
-    debug(
-      '%s %s: Discarding body request stream: ' +
-      'Use "*/*" or set "body" to accept content types',
-      method,
-      path
-    )
-
-    return options.discardUnknownBodies === false ? undefined : discardBody
-  }
-
   var bodyMap = {}
   var types = Object.keys(bodies)
 
@@ -287,10 +288,17 @@ function bodyHandler (bodies, path, method, options) {
   var expectedMessage = types.length === 1 ? validTypes : 'one of ' + validTypes
 
   return function ospreyContentType (req, res, next) {
-    var type = is(req, types)
+    var contentType = req.headers['content-type']
+
+    // Error when no body has been sent.
+    if (!is.hasBody(req)) {
+      return next(createError(415, 'No body sent with request of "' + contentType + '"'))
+    }
+
+    var type = is.is(contentType, types)
 
     if (!type) {
-      return next(createError(415, 'Unsupported content-type header "' + req.headers['content-type'] + '", expected ' + expectedMessage))
+      return next(createError(415, 'Unsupported content-type header "' + contentType + '", expected ' + expectedMessage))
     }
 
     var fn = bodyMap[type]
@@ -309,17 +317,6 @@ function bodyHandler (bodies, path, method, options) {
  * @return {Function}
  */
 function jsonBodyHandler (body, path, method, options) {
-  if (!body || !body.schema) {
-    debug(
-      '%s %s: Body JSON schema missing: ' +
-      'Define "schema" to parse and receive JSON',
-      method,
-      path
-    )
-
-    return
-  }
-
   var jsonBodyParser = require('body-parser').json({
     type: [],
     strict: false,
@@ -327,10 +324,13 @@ function jsonBodyHandler (body, path, method, options) {
     reviver: options.reviver
   })
 
-  return compose([
-    jsonBodyParser,
-    jsonBodyValidationHandler(body.schema, path, method)
-  ])
+  var middleware = [jsonBodyParser]
+
+  if (body && body.schema) {
+    middleware.push(jsonBodyValidationHandler(body.schema, path, method))
+  }
+
+  return compose(middleware)
 }
 
 /**
@@ -382,17 +382,6 @@ function jsonBodyValidationHandler (str, path, method) {
  * @return {Function}
  */
 function urlencodedBodyHandler (body, path, method, options) {
-  if (!body || !body.formParameters) {
-    debug(
-      '%s %s: Body URL Encoded form parameters missing: ' +
-      'Define "formParameters" to parse and receive body parameters',
-      method,
-      path
-    )
-
-    return
-  }
-
   var urlencodedBodyParser = require('body-parser').urlencoded({
     type: [],
     extended: false,
@@ -400,10 +389,13 @@ function urlencodedBodyHandler (body, path, method, options) {
     parameterLimit: options.parameterLimit
   })
 
-  return compose([
-    urlencodedBodyParser,
-    urlencodedBodyValidationHandler(body.formParameters)
-  ])
+  var middleware = [urlencodedBodyParser]
+
+  if (body && body.formParameters) {
+    middleware.push(urlencodedBodyValidationHandler(body.formParameters))
+  }
+
+  return compose(middleware)
 }
 
 /**
@@ -441,21 +433,63 @@ function urlencodedBodyValidationHandler (parameters) {
  * @return {Function}
  */
 function xmlBodyHandler (body, path, method, options) {
-  if (!body || !body.schema) {
-    debug(
-      '%s %s: Body XML schema missing: ' +
-      'Define "schema" to parse and receive XML content',
-      method,
-      path
-    )
+  var xmlParser = xmlBodyParser(options)
+  var middleware = [xmlParser]
 
-    return
+  if (body && body.schema) {
+    middleware.push(xmlBodyValidationHandler(body.schema, path, method))
   }
 
-  return compose([
-    require('body-parser').text({ type: [], limit: options.limit }),
-    xmlBodyValidationHandler(body.schema, path, method)
-  ])
+  return compose(middleware)
+}
+
+/**
+ * Parse an XML body request.
+ *
+ * @param  {Object}   options
+ * @return {Function}
+ */
+function xmlBodyParser (options) {
+  var libxml = getLibXml()
+  var bodyParser = require('body-parser').text({ type: [], limit: options.limit })
+
+  // Parse the request body text.
+  function xmlParser (req, res, next) {
+    var xml
+
+    try {
+      xml = libxml.parseXml(req.body)
+    } catch (err) {
+      // Add a status code to indicate bad requests automatically.
+      err.status = err.statusCode = 400
+      return next(err)
+    }
+
+    // Assign parsed XML document to the body.
+    req.xml = xml
+
+    return next()
+  }
+
+  return compose([bodyParser, xmlParser])
+}
+
+/**
+ * Require `libxmljs` with error messaging.
+ *
+ * @return {Object}
+ */
+function getLibXml () {
+  var libxml
+
+  try {
+    libxml = require('libxmljs')
+  } catch (err) {
+    err.message = 'Install "libxmljs" using `npm install libxmljs --save` for XML validation'
+    throw err
+  }
+
+  return libxml
 }
 
 /**
@@ -467,15 +501,8 @@ function xmlBodyHandler (body, path, method, options) {
  * @return {Function}
  */
 function xmlBodyValidationHandler (str, path, method) {
+  var libxml = getLibXml()
   var schema
-  var libxml
-
-  try {
-    libxml = require('libxmljs')
-  } catch (err) {
-    err.message = 'Install "libxmljs" using `npm install libxmljs --save` for XML validation'
-    throw err
-  }
 
   try {
     schema = libxml.parseXml(str)
@@ -485,22 +512,9 @@ function xmlBodyValidationHandler (str, path, method) {
   }
 
   return function ospreyXmlBody (req, res, next) {
-    var doc
-
-    try {
-      doc = libxml.parseXml(req.body)
-    } catch (err) {
-      // Add a status code to indicate bad requests automatically.
-      err.status = err.statusCode = 400
-      return next(err)
+    if (!req.xml.validate(schema)) {
+      return next(createValidationError(formatXmlErrors(req.xml.validationErrors)))
     }
-
-    if (!doc.validate(schema)) {
-      return next(createValidationError(formatXmlErrors(doc.validationErrors)))
-    }
-
-    // Assign parsed XML document to the body.
-    req.xml = doc
 
     return next()
   }
@@ -515,28 +529,14 @@ function xmlBodyValidationHandler (str, path, method) {
  * @return {Function}
  */
 function formDataBodyHandler (body, path, method) {
-  if (!body || !body.formParameters) {
-    debug(
-      '%s %s: Body multipart form parameters missing: ' +
-      'Define "formParameters" to parse and receive form content',
-      method,
-      path
-    )
-
-    return
-  }
-
   var Busboy = require('busboy')
-  var params = body.formParameters
+  var params = body && body.formParameters || {}
   var validators = {}
   var sanitizers = {}
 
   // Asynchonously sanitizes and validates values.
   Object.keys(params).forEach(function (key) {
-    var param = extend(params[key])
-
-    // Remove repeated validation and sanitization for async handling.
-    delete param.repeat
+    var param = extend(params[key], { repeat: false })
 
     sanitizers[key] = ramlSanitize.rule(param)
     validators[key] = ramlValidate.rule(param)
@@ -548,85 +548,88 @@ function formDataBodyHandler (body, path, method) {
     var busboy = req.form = new Busboy({ headers: req.headers })
     var errors = {}
 
-    // Override `emit` to provide validations.
-    busboy.emit = function emit (type, name, value, a, b, c) {
-      var close = type === 'field' ? noop : function () {
-        value.resume()
-      }
-
-      if (type === 'field' || type === 'file') {
-        if (!params.hasOwnProperty(name)) {
-          return close()
+    // Override `emit` to provide validations. Only validate when
+    // `formParameters` are set.
+    if (body && body.formParameters) {
+      busboy.emit = function emit (type, name, value, a, b, c) {
+        var close = type === 'field' ? noop : function () {
+          value.resume()
         }
 
-        // Sanitize the value before emitting.
-        value = sanitizers[name](value)
-
-        // Check for repeat errors.
-        if (received[name] && !params[name].repeat) {
-          errors[name] = {
-            valid: false,
-            rule: 'repeat',
-            value: value,
-            key: name,
-            attr: false
+        if (type === 'field' || type === 'file') {
+          if (!params.hasOwnProperty(name)) {
+            return close()
           }
 
-          errored = true
+          // Sanitize the value before emitting.
+          value = sanitizers[name](value)
 
-          return close()
-        }
-
-        // Set the value to be already received.
-        received[name] = true
-
-        // Check the value is valid.
-        var result = validators[name](value, name)
-
-        // Collect invalid values.
-        if (!result.valid) {
-          errored = true
-          errors[name] = result
-        }
-
-        // Don't emit when an error has already occured. Check after the
-        // value validation because we want to collect all possible errors.
-        if (errored) {
-          return close()
-        }
-      } else if (type === 'finish') {
-        // Finish emits twice, but is actually done the second time.
-        if (!this._done) {
-          return Busboy.prototype.emit.call(this, 'finish')
-        }
-
-        var validationErrors = Object.keys(params)
-          .filter(function (key) {
-            return params[key].required && !received[key]
-          })
-          .map(function (key) {
-            return {
+          // Check for repeat errors.
+          if (received[name] && !params[name].repeat) {
+            errors[name] = {
               valid: false,
-              rule: 'required',
-              value: undefined,
-              key: key,
-              attr: true
+              rule: 'repeat',
+              value: value,
+              key: name,
+              attr: false
             }
-          })
-          .concat(values(errors))
 
-        if (validationErrors.length) {
-          Busboy.prototype.emit.call(
-            this,
-            'error',
-            createValidationError(formatRamlErrors(validationErrors, 'form'))
-          )
+            errored = true
 
-          return
+            return close()
+          }
+
+          // Set the value to be already received.
+          received[name] = true
+
+          // Check the value is valid.
+          var result = validators[name](value, name)
+
+          // Collect invalid values.
+          if (!result.valid) {
+            errored = true
+            errors[name] = result
+          }
+
+          // Don't emit when an error has already occured. Check after the
+          // value validation because we want to collect all possible errors.
+          if (errored) {
+            return close()
+          }
+        } else if (type === 'finish') {
+          // Finish emits twice, but is actually done the second time.
+          if (!this._done) {
+            return Busboy.prototype.emit.call(this, 'finish')
+          }
+
+          var validationErrors = Object.keys(params)
+            .filter(function (key) {
+              return params[key].required && !received[key]
+            })
+            .map(function (key) {
+              return {
+                valid: false,
+                rule: 'required',
+                value: undefined,
+                key: key,
+                attr: true
+              }
+            })
+            .concat(values(errors))
+
+          if (validationErrors.length) {
+            Busboy.prototype.emit.call(
+              this,
+              'error',
+              createValidationError(formatRamlErrors(validationErrors, 'form'))
+            )
+
+            return
+          }
         }
-      }
 
-      return Busboy.prototype.emit.apply(this, arguments)
+        return Busboy.prototype.emit.apply(this, arguments)
+      }
     }
 
     return next()
