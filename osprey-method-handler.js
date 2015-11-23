@@ -274,14 +274,24 @@ function bodyHandler (bodies, path, method, options) {
   var bodyMap = {}
   var types = Object.keys(bodies)
 
-  BODY_HANDLERS.forEach(function (handler) {
-    var type = handler[0]
-    var fn = handler[1]
-    var result = is.is(type, types)
+  types.forEach(function (type) {
+    var handlers = BODY_HANDLERS
+      .filter(function (handler) {
+        return is.is(handler[0], type)
+      })
 
-    if (result) {
-      bodyMap[result] = fn(bodies[result], path, method, options)
+    // Do not parse on wildcards.
+    if (handlers.length > 1 && !options.parseBodiesOnWildcard) {
+      return
     }
+
+    // Attach existing handlers.
+    handlers.forEach(function (handler) {
+      var properType = handler[0]
+      var fn = handler[1]
+
+      bodyMap[properType] = fn(bodies[type], path, method, options)
+    })
   })
 
   var validTypes = types.map(JSON.stringify).join(', ')
@@ -292,13 +302,20 @@ function bodyHandler (bodies, path, method, options) {
 
     // Error when no body has been sent.
     if (!is.hasBody(req)) {
-      return next(createError(415, 'No body sent with request of "' + contentType + '"'))
+      return next(createError(
+        415,
+        'No body sent with request for ' + req.method + ' ' + req.originalUrl +
+        ' with content-type "' + contentType + '"'
+      ))
     }
 
     var type = is.is(contentType, types)
 
     if (!type) {
-      return next(createError(415, 'Unsupported content-type header "' + contentType + '", expected ' + expectedMessage))
+      return next(createError(
+        415,
+        'Unsupported content-type header "' + contentType + '", expected ' + expectedMessage
+      ))
     }
 
     var fn = bodyMap[type]

@@ -68,6 +68,7 @@ Accepts the RAML schema as the first argument, method and path in subsequent arg
 * `discardUnknownBodies` Discard undefined request streams (default: `true`)
 * `discardUnknownQueryParameters` Discard undefined query parameters (default: `true`)
 * `discardUnknownHeaders` Discard undefined header parameters (always includes known headers) (default: `true`)
+* `parseBodiesOnWildcard` Toggle parsing bodies on wildcard body support (default: `false`)
 * `reviver` The [reviver](https://github.com/expressjs/body-parser#reviver) passed to `JSON.parse` for JSON endpoints
 * `limit` The [maximum bytes](https://github.com/expressjs/body-parser#limit-2) for XML, JSON and URL-encoded endpoints (default: `'100kb'`)
 * `parameterLimit` The [maximum number](https://github.com/expressjs/body-parser#parameterlimit) of URL-encoded parameters (default: `1000`)
