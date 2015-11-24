@@ -1277,6 +1277,34 @@ describe('osprey method handler', function () {
           expect(res.status).to.equal(200)
         })
     })
+
+    it('should accept anything without response types', function () {
+      var app = router()
+
+      app.get('/', handler({
+        responses: {
+          '200': {
+            body: {}
+          }
+        }
+      }), function (req, res) {
+        expect(req.headers.accept).to.equal('foo/bar')
+
+        res.end('success')
+      })
+
+      return popsicle({
+        url: '/',
+        headers: {
+          'Accept': 'foo/bar'
+        }
+      })
+        .use(server(createServer(app)))
+        .then(function (res) {
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
   })
 })
 

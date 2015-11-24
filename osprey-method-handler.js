@@ -166,7 +166,7 @@ function acceptsHandler (responses, path, method) {
   if (!mediaTypes.length) {
     debug('%s %s: No accepts media types defined', method, path)
 
-    return
+    return []
   }
 
   var validTypes = mediaTypes.map(JSON.stringify).join(', ')
