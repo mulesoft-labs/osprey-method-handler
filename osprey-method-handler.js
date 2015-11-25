@@ -543,9 +543,10 @@ function xmlBodyValidationHandler (str, path, method) {
  * @param  {Object}   body
  * @param  {String}   path
  * @param  {String}   method
+ * @param  {Object}   options
  * @return {Function}
  */
-function formDataBodyHandler (body, path, method) {
+function formDataBodyHandler (body, path, method, options) {
   var Busboy = require('busboy')
   var params = body && body.formParameters || {}
   var validators = {}
@@ -562,7 +563,7 @@ function formDataBodyHandler (body, path, method) {
   return function ospreyMethodForm (req, res, next) {
     var received = {}
     var errored = false
-    var busboy = req.form = new Busboy({ headers: req.headers })
+    var busboy = req.form = new Busboy({ headers: req.headers, limits: options.busboyLimits })
     var errors = {}
 
     // Override `emit` to provide validations. Only validate when
