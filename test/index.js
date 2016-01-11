@@ -48,7 +48,7 @@ describe('osprey method handler', function () {
         return next(err)
       })
 
-      return popsicle({
+      return popsicle.default({
         url: '/',
         headers: {
           'X-Header': 'abc'
@@ -75,7 +75,7 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle({
+      return popsicle.default({
         url: '/',
         headers: {
           date: new Date().toString()
@@ -120,7 +120,7 @@ describe('osprey method handler', function () {
         return next(err)
       })
 
-      return popsicle('/?a=value&b=value')
+      return popsicle.default('/?a=value&b=value')
         .use(server(createServer(app)))
         .then(function (res) {
           expect(res.status).to.equal(400)
@@ -143,7 +143,7 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle('/?a=value&b=value')
+      return popsicle.default('/?a=value&b=value')
         .use(server(createServer(app)))
         .then(function (res) {
           expect(res.body).to.equal('success')
@@ -167,7 +167,7 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle('/?a=value&b=value')
+      return popsicle.default('/?a=value&b=value')
         .use(server(createServer(app)))
         .then(function (res) {
           expect(res.body).to.equal('success')
@@ -191,7 +191,7 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle('/')
+      return popsicle.default('/')
         .use(server(createServer(app)))
         .then(function (res) {
           expect(res.body).to.equal('success')
@@ -216,7 +216,7 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle('/?foo[]=a&foo[1]=b&foo[22]=c')
+      return popsicle.default('/?foo[]=a&foo[1]=b&foo[22]=c')
         .use(server(createServer(app)))
         .then(function (res) {
           expect(res.body).to.equal('success')
@@ -240,7 +240,33 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle('/?foo[bar]=test')
+      return popsicle.default('/?foo[bar]=test')
+        .use(server(createServer(app)))
+        .then(function (res) {
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
+
+    it('should support unused repeat parameters (mulesoft/osprey#84)', function () {
+      var app = router()
+
+      app.get('/', handler({
+        queryParameters: {
+          instance_state_name: {
+            type: 'string',
+            repeat: true,
+            required: false
+          }
+        }
+      }, '/', 'GET'), function (req, res) {
+        expect(req.url).to.equal('/')
+        expect(req.query).to.deep.equal({ instance_state_name: [] })
+
+        res.end('success')
+      })
+
+      return popsicle.default('/')
         .use(server(createServer(app)))
         .then(function (res) {
           expect(res.body).to.equal('success')
@@ -266,7 +292,7 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           headers: {
@@ -326,7 +352,7 @@ describe('osprey method handler', function () {
           return next(err)
         })
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: [true, 123]
@@ -348,7 +374,7 @@ describe('osprey method handler', function () {
           }
         }))
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: 'foobar',
@@ -377,7 +403,7 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: [true, false]
@@ -410,7 +436,7 @@ describe('osprey method handler', function () {
           }
         }))
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: '{"url":"http://example.com"}',
@@ -489,7 +515,7 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: [{
@@ -563,7 +589,7 @@ describe('osprey method handler', function () {
             return next(err)
           })
 
-          return popsicle({
+          return popsicle.default({
             url: '/',
             method: 'post',
             body: [
@@ -594,7 +620,7 @@ describe('osprey method handler', function () {
             }
           }))
 
-          return popsicle({
+          return popsicle.default({
             url: '/',
             method: 'post',
             body: 'foobar',
@@ -624,7 +650,7 @@ describe('osprey method handler', function () {
             res.end('success')
           })
 
-          return popsicle({
+          return popsicle.default({
             url: '/',
             method: 'post',
             body: [
@@ -679,7 +705,7 @@ describe('osprey method handler', function () {
           return next(err)
         })
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: 'a=true&a=123',
@@ -713,7 +739,7 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: 'a=true&a=123',
@@ -766,7 +792,7 @@ describe('osprey method handler', function () {
           return next(err)
         })
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: popsicle.form({
@@ -804,7 +830,7 @@ describe('osprey method handler', function () {
           req.pipe(req.form)
         })
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: popsicle.form({
@@ -842,7 +868,7 @@ describe('osprey method handler', function () {
           req.pipe(req.form)
         })
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: popsicle.form({
@@ -880,7 +906,7 @@ describe('osprey method handler', function () {
         form.append('item', 'abc')
         form.append('item', '123')
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: form
@@ -918,7 +944,7 @@ describe('osprey method handler', function () {
 
         form.append('more', '123')
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: form
@@ -968,7 +994,7 @@ describe('osprey method handler', function () {
           req.pipe(req.form)
         })
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: popsicle.form({
@@ -1022,7 +1048,7 @@ describe('osprey method handler', function () {
           req.pipe(req.form)
         })
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: popsicle.form({
@@ -1051,7 +1077,7 @@ describe('osprey method handler', function () {
           }
         }))
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: 'test',
@@ -1076,7 +1102,7 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: 'test',
@@ -1135,7 +1161,7 @@ describe('osprey method handler', function () {
         form.append('items', 'true')
         form.append('items', 'false')
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           method: 'post',
           body: form
@@ -1156,7 +1182,7 @@ describe('osprey method handler', function () {
           return req._readableState.ended ? res.end() : req.pipe(res)
         })
 
-        return popsicle({
+        return popsicle.default({
           url: '/',
           body: popsicle.form({
             file: fs.createReadStream(join(__dirname, 'index.js'))
@@ -1182,7 +1208,7 @@ describe('osprey method handler', function () {
         }
       )
 
-      return popsicle({
+      return popsicle.default({
         url: '/',
         body: 'test',
         method: 'post'
@@ -1207,7 +1233,7 @@ describe('osprey method handler', function () {
         return req.pipe(res)
       })
 
-      return popsicle({
+      return popsicle.default({
         url: '/',
         body: popsicle.form({
           file: fs.createReadStream(join(__dirname, 'index.js'))
@@ -1236,7 +1262,7 @@ describe('osprey method handler', function () {
         }
       }))
 
-      return popsicle({
+      return popsicle.default({
         url: '/',
         headers: {
           'Accept': 'application/json'
@@ -1265,7 +1291,7 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle({
+      return popsicle.default({
         url: '/',
         headers: {
           'Accept': 'application/json, text/html'
@@ -1293,7 +1319,7 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle({
+      return popsicle.default({
         url: '/',
         headers: {
           'Accept': 'foo/bar'
