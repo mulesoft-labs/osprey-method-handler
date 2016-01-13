@@ -680,17 +680,6 @@ function createValidationError (errors) {
 function discardBody (req, res, next) {
   debug('%s %s: Discarding request stream', req.method, req.url)
 
-  Object.defineProperty(req, 'body', {
-    get: function () {
-      var url = req.originalUrl || req.url
-
-      console.error(
-        'This request body was discarded by Osprey. Use "*/*" or populate ' +
-        '"body" in your RAML document to accept data with "' + url + '"'
-      )
-    }
-  })
-
   // TODO(blakeembrey): Make sure this doesn't break in future node versions.
   if (req._readableState.ended) {
     return next()
