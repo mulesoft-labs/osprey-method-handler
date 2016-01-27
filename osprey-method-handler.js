@@ -723,7 +723,8 @@ function formatRamlErrors (errors, type) {
       keyword: error.rule,
       schema: error.attr,
       data: error.value,
-      message: 'invalid ' + type + ' (' + error.rule + ', ' + error.attr + ')'
+      message: 'invalid ' + type + ' (' + error.rule + ', ' + error.attr + ')',
+      params: error.params
     }
   })
 }
