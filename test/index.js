@@ -311,7 +311,7 @@ describe('osprey method handler', function () {
     })
 
     describe('json', function () {
-      var JSON_SCHEMA = '{"items":{"type":"boolean"}}'
+      var JSON_SCHEMA = '{"properties":{"x":{"type":"string"}},"required":["x"]}'
 
       it('should error creating middleware with invalid json', function () {
         expect(function () {
@@ -341,11 +341,11 @@ describe('osprey method handler', function () {
           expect(err.requestErrors).to.deep.equal([
             {
               type: 'json',
-              keyword: 'type',
-              dataPath: '/1',
-              message: 'should be boolean',
-              schema: 'boolean',
-              data: 123
+              keyword: 'required',
+              dataPath: '/x',
+              message: 'is a required property',
+              schema: { x: { type: 'string' } },
+              data: {}
             }
           ])
 
@@ -355,7 +355,7 @@ describe('osprey method handler', function () {
         return popsicle.default({
           url: '/',
           method: 'post',
-          body: [true, 123]
+          body: {}
         })
           .use(server(createServer(app)))
           .then(function (res) {

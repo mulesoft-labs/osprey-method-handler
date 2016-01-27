@@ -14,7 +14,7 @@ var compose = require('compose-middleware').compose
 var Ajv = require('ajv')
 var debug = require('debug')('osprey-method-handler')
 
-var ajv = Ajv({ allErrors: true, verbose: true, jsonPointers: true })
+var ajv = Ajv({ allErrors: true, verbose: true, jsonPointers: true, errorDataPath: 'property' })
 
 /**
  * Detect JSON schema v3.
