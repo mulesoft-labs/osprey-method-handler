@@ -45,7 +45,7 @@
     "popsicle": "^3.0.0",
     "popsicle-server": "^1.0.0",
     "pre-commit": "^1.0.5",
-    "standard": "^5.0.0"
+    "standard": "^6.0.4"
   },
   "dependencies": {
     "ajv": "^3.2.0",
