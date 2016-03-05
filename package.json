@@ -42,7 +42,7 @@
     "istanbul": "^0.4.0",
     "mocha": "^2.1.0",
     "osprey-router": "^0.3.0",
-    "popsicle": "^3.0.0",
+    "popsicle": "^4.0.0",
     "popsicle-server": "^1.0.0",
     "pre-commit": "^1.0.5",
     "standard": "^6.0.4"
