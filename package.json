@@ -48,7 +48,7 @@
     "standard": "^6.0.4"
   },
   "dependencies": {
-    "ajv": "^3.2.0",
+    "ajv": "^4.0.0",
     "body-parser": "^1.10.2",
     "busboy": "^0.2.9",
     "compose-middleware": "^2.0.0",
