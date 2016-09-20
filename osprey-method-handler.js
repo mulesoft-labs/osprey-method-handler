@@ -408,8 +408,9 @@ function urlencodedBodyHandler (body, path, method, options) {
 
   var middleware = [urlencodedBodyParser]
 
-  if (body && body.formParameters) {
-    middleware.push(urlencodedBodyValidationHandler(body.formParameters))
+  if (body && (body.formParameters || body.properties)) {
+    var properties = body.formParameters || body.properties
+    middleware.push(urlencodedBodyValidationHandler(properties))
   }
 
   return compose(middleware)

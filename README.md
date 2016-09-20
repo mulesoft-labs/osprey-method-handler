@@ -5,7 +5,7 @@
 [![Build status][travis-image]][travis-url]
 [![Test coverage][coveralls-image]][coveralls-url]
 
-Middleware for validating requests and responses based on a [RAML method](https://github.com/raml-org/raml-spec/blob/master/raml-0.8.md#methods) object.
+Middleware for validating requests and responses based on a RAML method object.
 
 ## Installation
 
@@ -15,6 +15,7 @@ npm install osprey-method-handler --save
 
 ## Features
 
+* Supports RAML 0.8 and RAML 1.0
 * Header validation (ignores undocumented headers)
 * Query validation (ignores undocumented parameters)
 * Request body validation
