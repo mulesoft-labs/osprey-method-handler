@@ -407,10 +407,10 @@ function urlencodedBodyHandler (body, path, method, options) {
   })
 
   var middleware = [urlencodedBodyParser]
+  var params = body && (body.formParameters || body.properties) || undefined
 
-  if (body && (body.formParameters || body.properties)) {
-    var properties = body.formParameters || body.properties
-    middleware.push(urlencodedBodyValidationHandler(properties))
+  if (params) {
+    middleware.push(urlencodedBodyValidationHandler(params))
   }
 
   return compose(middleware)
@@ -549,7 +549,7 @@ function xmlBodyValidationHandler (str, path, method) {
  */
 function formDataBodyHandler (body, path, method, options) {
   var Busboy = require('busboy')
-  var params = body && body.formParameters || {}
+  var params = body && (body.formParameters || body.properties) || {}
   var validators = {}
   var sanitizers = {}
 
@@ -568,8 +568,8 @@ function formDataBodyHandler (body, path, method, options) {
     var errors = {}
 
     // Override `emit` to provide validations. Only validate when
-    // `formParameters` are set.
-    if (body && body.formParameters) {
+    // `formParameters` (or RAML 1.0 `properties`) are set.
+    if (body && (body.formParameters || body.properties)) {
       busboy.emit = function emit (type, name, value, a, b, c) {
         var close = type === 'field' ? noop : function () {
           value.resume()
