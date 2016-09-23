@@ -340,11 +340,11 @@ function jsonBodyHandler (body, path, method, options) {
     limit: options.limit,
     reviver: options.reviver
   })
-
+  var schema = body && (body.schema || body.properties) || undefined
   var middleware = [jsonBodyParser]
 
-  if (body && body.schema) {
-    middleware.push(jsonBodyValidationHandler(body.schema, path, method))
+  if (schema) {
+    middleware.push(jsonBodyValidationHandler(schema, path, method))
   }
 
   return compose(middleware)
@@ -353,36 +353,43 @@ function jsonBodyHandler (body, path, method, options) {
 /**
  * Validate JSON bodies.
  *
- * @param  {String}   str
+ * @param  {Object}   schema
  * @param  {String}   path
  * @param  {String}   method
  * @return {Function}
  */
-function jsonBodyValidationHandler (str, path, method) {
+function jsonBodyValidationHandler (schema, path, method) {
   var jsonSchemaCompatibility = require('json-schema-compatibility')
-  var schema
   var validate
 
-  try {
-    schema = JSON.parse(str)
+  // RAML datatype
+  if (schema.constructor === {}.constructor) {
+    validate = ramlValidate(schema)
+  } else {
+    try {
+      schema = JSON.parse(schema)
 
-    // Convert draft-03 schema to 04.
-    if (JSON_SCHEMA_03.test(schema.$schema)) {
-      schema = jsonSchemaCompatibility.v4(schema)
-      schema.$schema = 'http://json-schema.org/draft-04/schema'
+      // Convert draft-03 schema to 04.
+      if (JSON_SCHEMA_03.test(schema.$schema)) {
+        schema = jsonSchemaCompatibility.v4(schema)
+        schema.$schema = 'http://json-schema.org/draft-04/schema'
+      }
+
+      validate = ajv.compile(schema)
+    } catch (err) {
+      err.message = 'Unable to compile JSON schema for ' + method + ' ' + path + ': ' + err.message
+      throw err
     }
-
-    validate = ajv.compile(schema)
-  } catch (err) {
-    err.message = 'Unable to compile JSON schema for ' + method + ' ' + path + ': ' + err.message
-    throw err
   }
 
   return function ospreyJsonBody (req, res, next) {
-    var valid = validate(req.body)
+    var result = validate(req.body)
 
-    if (!valid) {
+    if (result === false) {
       return next(createValidationError(formatJsonErrors(validate.errors)))
+    }
+    if (result.valid === false) {
+      return next(createValidationError(formatRamlErrors(result.errors, 'RAML datatype')))
     }
 
     return next()

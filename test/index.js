@@ -310,6 +310,55 @@ describe('osprey method handler', function () {
       })
     })
 
+    describe('raml datatype', function () {
+      var RAML_DT = {
+        foo: {
+          name: 'foo',
+          displayName: 'foo',
+          type: [ 'string' ],
+          required: true
+        }
+      }
+
+      it('should reject invalid RAML datatype with standard error format', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              properties: RAML_DT
+            }
+          }
+        }))
+
+        app.use(function (err, req, res, next) {
+          expect(err.ramlValidation).to.be.true
+          expect(err.requestErrors).to.deep.equal([
+            {
+              type: 'RAML datatype',
+              keyword: 'required',
+              dataPath: 'foo',
+              message: 'invalid RAML datatype (required, true)',
+              schema: true,
+              data: undefined
+            }
+          ])
+
+          return next(err)
+        })
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          body: {}
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+    })
+
     describe('json', function () {
       var JSON_SCHEMA = '{"properties":{"x":{"type":"string"}},"required":["x"]}'
 
