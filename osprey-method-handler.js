@@ -5,9 +5,9 @@ var querystring = require('querystring')
 var createError = require('http-errors')
 var lowercaseKeys = require('lowercase-keys')
 var ramlSanitize = require('raml-sanitize')()
-var ramlValidate = require('raml-validate')()
+// var ramlValidate = require('raml-validate')()
 var ts = require('raml-typesystem')
-var isStream = require('is-stream')
+// var isStream = require('is-stream')
 var values = require('object-values')
 var Negotiator = require('negotiator')
 var standardHeaders = require('standard-headers')
@@ -57,9 +57,9 @@ var BODY_HANDLERS = [
  * @param  {Stream}  value
  * @return {Boolean}
  */
-ramlValidate.TYPES.file = function (stream) {
-  return isStream(stream)
-}
+// ramlValidate.TYPES.file = function (stream) {
+//   return isStream(stream)
+// }
 
 /**
  * Set custom datetime sanitization.
@@ -596,7 +596,8 @@ function formDataBodyHandler (body, path, method, options) {
 
   // Asynchonously sanitizes and validates values.
   Object.keys(params).forEach(function (key) {
-    var param = extend(params[key], { repeat: false })
+    // var param = extend(params[key], { repeat: false })
+    var param = params[key]
 
     sanitizers[key] = ramlSanitize.rule(param)
     // validators[key] = ramlValidate.rule(param)
@@ -645,7 +646,13 @@ function formDataBodyHandler (body, path, method, options) {
 
           // Check the value is valid.
           // var result = validators[name](value, name)
-          var result = typeLoaders[name].validate(value)
+          var result
+          if (type === 'file') {
+            // force files to be validate as strings
+            result = typeLoaders[name].validate(value.toString())
+          } else {
+            result = typeLoaders[name].validate(value)
+          }
           // var errors = result.getErrors()
 
           // Collect invalid values.
