@@ -96,7 +96,6 @@ function addJsonSchema (schema, key) {
  * @return {Function}
  */
 function ospreyMethodHandler (schema, path, method, options) {
-  // console.log(options)
   schema = schema || {}
   options = options || {}
 
@@ -215,7 +214,7 @@ function queryHandler (queryParameters, path, method, options) {
   return function ospreyQuery (req, res, next) {
     var reqUrl = parseurl(req)
     var query = sanitize(parseQuerystring(reqUrl.query))
-    var result = validate(query)
+    var result = validate(query, options.RAMLVersion)
 
     if (!result.valid) {
       return next(createValidationError(formatRamlErrors(result.errors, 'query')))
@@ -261,7 +260,7 @@ function headerHandler (headerParameters, path, method, options) {
 
   return function ospreyMethodHeader (req, res, next) {
     var headers = sanitize(lowercaseKeys(req.headers))
-    var result = validate(headers)
+    var result = validate(headers, options.RAMLVersion)
 
     if (!result.valid) {
       return next(createValidationError(formatRamlErrors(result.errors, 'header')))
@@ -357,7 +356,7 @@ function jsonBodyHandler (body, path, method, options) {
   var middleware = [jsonBodyParser]
 
   if (schema) {
-    middleware.push(jsonBodyValidationHandler(schema, path, method))
+    middleware.push(jsonBodyValidationHandler(schema, path, method, options))
   }
 
   return compose(middleware)
@@ -366,17 +365,18 @@ function jsonBodyHandler (body, path, method, options) {
 /**
  * Validate JSON bodies.
  *
- * @param  {Object}   schema
- * @param  {String}   path
- * @param  {String}   method
+ * @param  {Object|String}  schema
+ * @param  {String}         path
+ * @param  {String}         method
  * @return {Function}
  */
-function jsonBodyValidationHandler (schema, path, method) {
+function jsonBodyValidationHandler (schema, path, method, options) {
   var jsonSchemaCompatibility = require('json-schema-compatibility')
+  var isRAMLType = schema.constructor === {}.constructor
   var validate
 
   // RAML data types
-  if (schema.constructor === {}.constructor) {
+  if (isRAMLType) {
     validate = ramlValidate(schema)
 
   // JSON schema
@@ -398,13 +398,23 @@ function jsonBodyValidationHandler (schema, path, method) {
   }
 
   return function ospreyJsonBody (req, res, next) {
-    var result = validate(req.body)
+    var result
 
-    if (result === false) {
-      return next(createValidationError(formatJsonErrors(validate.errors)))
-    }
-    if (result.valid === false) {
-      return next(createValidationError(formatRamlErrors(result.errors, 'json')))
+    // RAML data types
+    if (isRAMLType) {
+      result = validate(req.body, options.RAMLVersion)
+
+      if (!result.valid) {
+        return next(createValidationError(formatRamlErrors(result.errors, 'json')))
+      }
+
+    // JSON schema
+    } else {
+      result = validate(req.body)
+
+      if (!result) {
+        return next(createValidationError(formatJsonErrors(validate.errors)))
+      }
     }
 
     return next()
@@ -432,7 +442,7 @@ function urlencodedBodyHandler (body, path, method, options) {
   var params = body && (body.formParameters || body.properties) || undefined
 
   if (params) {
-    middleware.push(urlencodedBodyValidationHandler(params))
+    middleware.push(urlencodedBodyValidationHandler(params, options))
   }
 
   return compose(middleware)
@@ -444,13 +454,13 @@ function urlencodedBodyHandler (body, path, method, options) {
  * @param  {String} parameters
  * @return {String}
  */
-function urlencodedBodyValidationHandler (parameters) {
+function urlencodedBodyValidationHandler (parameters, options) {
   var sanitize = ramlSanitize(parameters)
   var validate = ramlValidate(parameters)
 
   return function ospreyUrlencodedBody (req, res, next) {
     var body = sanitize(req.body)
-    var result = validate(body)
+    var result = validate(body, options.RAMLVersion)
 
     if (!result.valid) {
       return next(createValidationError(formatRamlErrors(result.errors, 'form')))
@@ -677,28 +687,6 @@ function formDataBodyHandler (body, path, method, options) {
 }
 
 /**
- * Format schema so that it can be validated by raml-typesystem
- *
- * @param  {Object} schema
- * @return {Object}
- */
-// function formatSchema (schema) {
-//   if (schema.constructor === {}.constructor) {
-//     // RAML type
-//     schema = {
-//       type: 'object',
-//       properties: schema
-//     }
-//   } else {
-//     // JSON schema
-//     schema = {
-//       type: schema
-//     }
-//   }
-//   return schema
-// }
-
-/**
  * Create a validation error.
  *
  * @param  {String} type
@@ -771,23 +759,6 @@ function formatRamlErrors (errors, type) {
     }
   })
 }
-
-/**
- * Make RAML type validation errors match standard format.
- *
- * @param  {Array}  errors
- * @param  {String} errType
- * @return {Array}
- */
-// function formatRamlTypeErrors (errors, errType) {
-//   return errors.map(function (error) {
-//     return {
-//       type: errType,
-//       dataPath: (error.source && error.source.name) || (error.vp && error.vp.name),
-//       message: error.message
-//     }
-//   })
-// }
 
 /**
  * Make JSON validation errors match standard format.
