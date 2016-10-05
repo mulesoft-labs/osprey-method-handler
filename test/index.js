@@ -178,7 +178,6 @@ describe('osprey method handler', function () {
       return popsicle.default('/?a=value&b=value')
         .use(server(createServer(app)))
         .then(function (res) {
-          // console.log(res)
           expect(res.body).to.equal('success')
           expect(res.status).to.equal(200)
         })
@@ -345,7 +344,7 @@ describe('osprey method handler', function () {
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.be.true
           expect(err.requestErrors[0]).to.include.keys(['type', 'message'])
-          expect(err.requestErrors[0].type).to.equal('RAML type')
+          expect(err.requestErrors[0].type).to.equal('json')
           // expect(err.requestErrors).to.deep.equal([
           //   {
           //     type: 'RAML datatype',
@@ -388,7 +387,7 @@ describe('osprey method handler', function () {
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.be.true
           expect(err.requestErrors[0]).to.include.keys(['type', 'message'])
-          expect(err.requestErrors[0].type).to.equal('RAML type')
+          expect(err.requestErrors[0].type).to.equal('json')
           // expect(err.requestErrors).to.deep.equal([
           //   {
           //     type: 'json',
