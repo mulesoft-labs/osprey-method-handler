@@ -500,90 +500,90 @@ describe('osprey method handler', function () {
           })
       })
 
-    //   it('should support external $ref when added', function () {
-    //     var schema = JSON.stringify({
-    //       $schema: 'http://json-schema.org/draft-04/schema#',
-    //       title: 'Product set',
-    //       type: 'array',
-    //       items: {
-    //         title: 'Product',
-    //         type: 'object',
-    //         properties: {
-    //           id: {
-    //             description: 'The unique identifier for a product',
-    //             type: 'number'
-    //           },
-    //           name: {
-    //             type: 'string'
-    //           },
-    //           price: {
-    //             type: 'number',
-    //             minimum: 0,
-    //             exclusiveMinimum: true
-    //           },
-    //           tags: {
-    //             type: 'array',
-    //             items: {
-    //               type: 'string'
-    //             },
-    //             minItems: 1,
-    //             uniqueItems: true
-    //           },
-    //           dimensions: {
-    //             type: 'object',
-    //             properties: {
-    //               length: { type: 'number' },
-    //               width: { type: 'number' },
-    //               height: { type: 'number' }
-    //             },
-    //             required: ['length', 'width', 'height']
-    //           },
-    //           warehouseLocation: {
-    //             description: 'Coordinates of the warehouse with the product',
-    //             $ref: 'http://json-schema.org/geo'
-    //           }
-    //         },
-    //         required: ['id', 'name', 'price']
-    //       }
-    //     })
+      it('should support external $ref when added', function () {
+        var schema = JSON.stringify({
+          $schema: 'http://json-schema.org/draft-04/schema#',
+          title: 'Product set',
+          type: 'array',
+          items: {
+            title: 'Product',
+            type: 'object',
+            properties: {
+              id: {
+                description: 'The unique identifier for a product',
+                type: 'number'
+              },
+              name: {
+                type: 'string'
+              },
+              price: {
+                type: 'number',
+                minimum: 0,
+                exclusiveMinimum: true
+              },
+              tags: {
+                type: 'array',
+                items: {
+                  type: 'string'
+                },
+                minItems: 1,
+                uniqueItems: true
+              },
+              dimensions: {
+                type: 'object',
+                properties: {
+                  length: { type: 'number' },
+                  width: { type: 'number' },
+                  height: { type: 'number' }
+                },
+                required: ['length', 'width', 'height']
+              },
+              warehouseLocation: {
+                description: 'Coordinates of the warehouse with the product',
+                $ref: 'http://json-schema.org/geo'
+              }
+            },
+            required: ['id', 'name', 'price']
+          }
+        })
 
-    //     var app = router()
+        var app = router()
 
-    //     // Register GeoJSON schema.
-    //     // handler.addJsonSchema(
-    //     //   require('./vendor/geo.json'),
-    //     //   'http://json-schema.org/geo'
-    //     // )
+        // Register GeoJSON schema.
+        handler.addJsonSchema(
+          require('./vendor/geo.json'),
+          'http://json-schema.org/geo'
+        )
 
-    //     app.post('/', handler({
-    //       body: {
-    //         'application/json': {
-    //           schema: schema
-    //         }
-    //       }
-    //     }), function (req, res) {
-    //       res.end('success')
-    //     })
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              schema: schema
+            }
+          }
+        }), function (req, res) {
+          res.end('success')
+        })
 
-    //     return popsicle.default({
-    //       url: '/',
-    //       method: 'post',
-    //       body: [{
-    //         id: 123,
-    //         name: 'Product',
-    //         price: 12.34,
-    //         tags: ['foo', 'bar'],
-    //         warehouseLocation: {
-    //           latitude: 123,
-    //           longitude: 456
-    //         }
-    //       }]
-    //     })
-    //       .use(server(createServer(app)))
-    //       .then(function (res) {
-    //         expect(res.status).to.equal(200)
-    //       })
-    //   })
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          body: [{
+            id: 123,
+            name: 'Product',
+            price: 12.34,
+            tags: ['foo', 'bar'],
+            warehouseLocation: {
+              latitude: 123,
+              longitude: 456
+            }
+          }]
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.status).to.equal(200)
+          })
+      })
     })
 
     if (hasModule('libxmljs')) {
