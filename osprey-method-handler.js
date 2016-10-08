@@ -199,12 +199,12 @@ function acceptsHandler (responses, path, method) {
  */
 function queryHandler (queryParameters, path, method, options) {
   var sanitize = ramlSanitize(queryParameters)
-  var validate = ramlValidate(queryParameters)
+  var validate = ramlValidate(queryParameters, options.RAMLVersion)
 
   return function ospreyQuery (req, res, next) {
     var reqUrl = parseurl(req)
     var query = sanitize(parseQuerystring(reqUrl.query))
-    var result = validate(query, options.RAMLVersion)
+    var result = validate(query)
 
     if (!result.valid) {
       return next(createValidationError(formatRamlErrors(result.errors, 'query')))
@@ -246,11 +246,11 @@ function parseQuerystring (query) {
 function headerHandler (headerParameters, path, method, options) {
   var headers = extend(DEFAULT_REQUEST_HEADER_PARAMS, lowercaseKeys(headerParameters))
   var sanitize = ramlSanitize(headers)
-  var validate = ramlValidate(headers)
+  var validate = ramlValidate(headers, options.RAMLVersion)
 
   return function ospreyMethodHeader (req, res, next) {
     var headers = sanitize(lowercaseKeys(req.headers))
-    var result = validate(headers, options.RAMLVersion)
+    var result = validate(headers)
 
     if (!result.valid) {
       return next(createValidationError(formatRamlErrors(result.errors, 'header')))
@@ -367,7 +367,7 @@ function jsonBodyValidationHandler (schema, path, method, options) {
 
   // RAML data types
   if (isRAMLType) {
-    validate = ramlValidate(schema)
+    validate = ramlValidate(schema, options.RAMLVersion)
 
   // JSON schema
   } else {
@@ -388,20 +388,16 @@ function jsonBodyValidationHandler (schema, path, method, options) {
   }
 
   return function ospreyJsonBody (req, res, next) {
-    var result
+    var result = validate(req.body)
 
     // RAML data types
     if (isRAMLType) {
-      result = validate(req.body, options.RAMLVersion)
-
       if (!result.valid) {
         return next(createValidationError(formatRamlErrors(result.errors, 'json')))
       }
 
     // JSON schema
     } else {
-      result = validate(req.body)
-
       if (!result) {
         return next(createValidationError(formatJsonErrors(validate.errors)))
       }
@@ -446,11 +442,11 @@ function urlencodedBodyHandler (body, path, method, options) {
  */
 function urlencodedBodyValidationHandler (parameters, options) {
   var sanitize = ramlSanitize(parameters)
-  var validate = ramlValidate(parameters)
+  var validate = ramlValidate(parameters, options.RAMLVersion)
 
   return function ospreyUrlencodedBody (req, res, next) {
     var body = sanitize(req.body)
-    var result = validate(body, options.RAMLVersion)
+    var result = validate(body)
 
     if (!result.valid) {
       return next(createValidationError(formatRamlErrors(result.errors, 'form')))
