@@ -34,18 +34,16 @@ describe('osprey method handler', function () {
 
       app.use(function (err, req, res, next) {
         expect(err.ramlValidation).to.be.true
-        expect(err.requestErrors[0]).to.include.keys(['type', 'message'])
-        expect(err.requestErrors[0].type).to.equal('header')
-        // expect(err.requestErrors).to.deep.equal([
-        //   {
-        //     type: 'header',
-        //     keyword: 'type',
-        //     dataPath: 'x-header',
-        //     message: 'invalid header (type, integer)',
-        //     schema: 'integer',
-        //     data: 'abc'
-        //   }
-        // ])
+        expect(err.requestErrors).to.deep.equal([
+          {
+            type: 'header',
+            keyword: 'type',
+            dataPath: 'x-header',
+            message: 'invalid header (type, integer)',
+            schema: 'integer',
+            data: 'abc'
+          }
+        ])
 
         return next(err)
       })
@@ -62,19 +60,45 @@ describe('osprey method handler', function () {
         })
     })
 
-    it('should sanitize headers', function () {
+    it('should sanitize RAML 0.8 headers', function () {
       var app = router()
 
       app.get('/', handler({
         headers: {
           date: {
-            // type: 'date'
+            type: 'date'
+          }
+        }
+      }, '/', 'GET', { RAMLVersion: 'RAML08' }), function (req, res) {
+        console.log(req.headers.date)
+        expect(req.headers.date).to.be.an.instanceOf(Date)
+
+        res.end('success')
+      })
+      return popsicle.default({
+        url: '/',
+        headers: {
+          date: new Date().toString()
+        }
+      })
+        .use(server(createServer(app)))
+        .then(function (res) {
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
+
+    it('should sanitize RAML 1.0 headers', function () {
+      var app = router()
+
+      app.get('/', handler({
+        headers: {
+          date: {
             type: 'datetime',
             format: 'rfc2616'
           }
         }
       }, '/', 'GET'), function (req, res) {
-        // expect(req.headers.date).to.be.an.instanceOf(Date)
         expect(req.headers.date).to.equal(new Date(req.headers.date).toUTCString())
 
         res.end('success')
@@ -82,7 +106,6 @@ describe('osprey method handler', function () {
       return popsicle.default({
         url: '/',
         headers: {
-          // date: new Date().toString()
           date: new Date().toUTCString()
         }
       })
@@ -111,18 +134,16 @@ describe('osprey method handler', function () {
 
       app.use(function (err, req, res, next) {
         expect(err.ramlValidation).to.be.true
-        expect(err.requestErrors[0]).to.include.keys(['type', 'message'])
-        expect(err.requestErrors[0].type).to.equal('query')
-        // expect(err.requestErrors).to.deep.equal([
-        //   {
-        //     type: 'query',
-        //     keyword: 'type',
-        //     dataPath: 'b',
-        //     message: 'invalid query (type, integer)',
-        //     schema: 'integer',
-        //     data: 'value'
-        //   }
-        // ])
+        expect(err.requestErrors).to.deep.equal([
+          {
+            type: 'query',
+            keyword: 'type',
+            dataPath: 'b',
+            message: 'invalid query (type, integer)',
+            schema: 'integer',
+            data: 'value'
+          }
+        ])
 
         return next(err)
       })
@@ -208,14 +229,37 @@ describe('osprey method handler', function () {
         })
     })
 
-    it('should parse requests using array query syntax', function () {
+    it('should parse requests using array query syntax (RAML 0.8)', function () {
       var app = router()
 
       app.get('/', handler({
         queryParameters: {
           foo: {
-            // type: 'string',
-            // repeat: true
+            type: 'string',
+            repeat: true
+          }
+        }
+      }, '/', 'GET', { RAMLVersion: 'RAML08' }), function (req, res) {
+        expect(req.url).to.equal('/?foo=a&foo=b&foo=c')
+        expect(req.query).to.deep.equal({ foo: ['a', 'b', 'c'] })
+
+        res.end('success')
+      })
+
+      return popsicle.default('/?foo[]=a&foo[1]=b&foo[22]=c')
+        .use(server(createServer(app)))
+        .then(function (res) {
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
+
+    it('should parse requests using array query syntax (RAML 1.0)', function () {
+      var app = router()
+
+      app.get('/', handler({
+        queryParameters: {
+          foo: {
             type: 'array'
           }
         }
@@ -226,7 +270,7 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle.default('/?foo[]=a&foo[1]=b&foo[22]=c')
+      return popsicle.default('/?foo=["a","b","c"]')
         .use(server(createServer(app)))
         .then(function (res) {
           expect(res.body).to.equal('success')
@@ -258,31 +302,31 @@ describe('osprey method handler', function () {
         })
     })
 
-    // it('should support unused repeat parameters (mulesoft/osprey#84)', function () {
-    //   var app = router()
+    it('should support unused repeat parameters (mulesoft/osprey#84)', function () {
+      var app = router()
 
-    //   app.get('/', handler({
-    //     queryParameters: {
-    //       instance_state_name: {
-    //         type: 'string',
-    //         repeat: true,
-    //         required: false
-    //       }
-    //     }
-    //   }, '/', 'GET'), function (req, res) {
-    //     expect(req.url).to.equal('/')
-    //     expect(req.query).to.deep.equal({ instance_state_name: [] })
+      app.get('/', handler({
+        queryParameters: {
+          instance_state_name: {
+            type: 'string',
+            repeat: true,
+            required: false
+          }
+        }
+      }, '/', 'GET', { RAMLVersion: 'RAML08' }), function (req, res) {
+        expect(req.url).to.equal('/')
+        expect(req.query).to.deep.equal({ instance_state_name: [] })
 
-    //     res.end('success')
-    //   })
+        res.end('success')
+      })
 
-    //   return popsicle.default('/')
-    //     .use(server(createServer(app)))
-    //     .then(function (res) {
-    //       expect(res.body).to.equal('success')
-    //       expect(res.status).to.equal(200)
-    //     })
-    // })
+      return popsicle.default('/')
+        .use(server(createServer(app)))
+        .then(function (res) {
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
   })
 
   describe('body', function () {
@@ -343,18 +387,16 @@ describe('osprey method handler', function () {
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.be.true
-          expect(err.requestErrors[0]).to.include.keys(['type', 'message'])
-          expect(err.requestErrors[0].type).to.equal('json')
-          // expect(err.requestErrors).to.deep.equal([
-          //   {
-          //     type: 'RAML datatype',
-          //     keyword: 'required',
-          //     dataPath: 'foo',
-          //     message: 'invalid RAML datatype (required, true)',
-          //     schema: true,
-          //     data: undefined
-          //   }
-          // ])
+          expect(err.requestErrors).to.deep.equal([
+            {
+              type: 'json',
+              keyword: 'required',
+              dataPath: 'foo',
+              message: 'invalid json (required, true)',
+              schema: true,
+              data: undefined
+            }
+          ])
           return next(err)
         })
 
@@ -386,18 +428,16 @@ describe('osprey method handler', function () {
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.be.true
-          expect(err.requestErrors[0]).to.include.keys(['type', 'message'])
-          expect(err.requestErrors[0].type).to.equal('json')
-          // expect(err.requestErrors).to.deep.equal([
-          //   {
-          //     type: 'json',
-          //     keyword: 'required',
-          //     dataPath: '/x',
-          //     message: 'is a required property',
-          //     schema: { x: { type: 'string' } },
-          //     data: {}
-          //   }
-          // ])
+          expect(err.requestErrors).to.deep.equal([
+            {
+              type: 'json',
+              keyword: 'required',
+              dataPath: '/x',
+              message: 'is a required property',
+              schema: { x: { type: 'string' } },
+              data: {}
+            }
+          ])
 
           return next(err)
         })
@@ -741,18 +781,16 @@ describe('osprey method handler', function () {
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.be.true
-          expect(err.requestErrors[0]).to.include.keys(['type', 'message'])
-          expect(err.requestErrors[0].type).to.equal('form')
-          // expect(err.requestErrors).to.deep.equal([
-          //   {
-          //     type: 'form',
-          //     keyword: 'repeat',
-          //     dataPath: 'a',
-          //     message: 'invalid form (repeat, false)',
-          //     schema: false,
-          //     data: ['true', '123']
-          //   }
-          // ])
+          expect(err.requestErrors).to.deep.equal([
+            {
+              type: 'form',
+              keyword: 'type',
+              dataPath: 'a',
+              message: 'invalid form (type, boolean)',
+              schema: 'boolean',
+              data: ['true', '123']
+            }
+          ])
 
           return next(err)
         })
@@ -771,42 +809,75 @@ describe('osprey method handler', function () {
           })
       })
 
-    //   it('should parse valid forms', function () {
-    //     var app = router()
+      it('should parse valid forms (RAML 0.8)', function () {
+        var app = router()
 
-    //     app.post('/', handler({
-    //       body: {
-    //         'application/x-www-form-urlencoded': {
-    //           formParameters: {
-    //             a: {
-    //               type: 'array',
-    //               items: 'boolean'
-    //               // type: 'boolean',
-    //               // repeat: true
-    //             }
-    //           }
-    //         }
-    //       }
-    //     }), function (req, res) {
-    //       expect(req.body).to.deep.equal({ a: [true, true] })
+        app.post('/', handler({
+          body: {
+            'application/x-www-form-urlencoded': {
+              formParameters: {
+                a: {
+                  type: 'boolean',
+                  repeat: true
+                }
+              }
+            }
+          }
+        }, '/', 'POST', { RAMLVersion: 'RAML08' }), function (req, res) {
+          expect(req.body).to.deep.equal({ a: [true, true] })
 
-    //       res.end('success')
-    //     })
+          res.end('success')
+        })
 
-    //     return popsicle.default({
-    //       url: '/',
-    //       method: 'post',
-    //       body: 'a=true&a=123',
-    //       headers: {
-    //         'Content-Type': 'application/x-www-form-urlencoded'
-    //       }
-    //     })
-    //       .use(server(createServer(app)))
-    //       .then(function (res) {
-    //         expect(res.body).to.equal('success')
-    //         expect(res.status).to.equal(200)
-    //       })
-    //   })
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          body: 'a=true&a=123',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+
+      it('should parse valid forms (RAML 1.0)', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/x-www-form-urlencoded': {
+              formParameters: {
+                a: {
+                  type: 'array',
+                  items: 'boolean'
+                }
+              }
+            }
+          }
+        }), function (req, res) {
+          expect(req.body).to.deep.equal({ a: [true, true] })
+
+          res.end('success')
+        })
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          body: 'a=[true,true]',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
     })
 
     describe('form data', function () {
@@ -832,18 +903,16 @@ describe('osprey method handler', function () {
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.be.true
-          expect(err.requestErrors[0]).to.include.keys(['type', 'message'])
-          expect(err.requestErrors[0].type).to.equal('form')
-          // expect(err.requestErrors).to.deep.equal([
-          //   {
-          //     type: 'form',
-          //     keyword: 'pattern',
-          //     dataPath: 'username',
-          //     message: 'invalid form (pattern, ^[a-zA-Z]\\w*$)',
-          //     schema: '^[a-zA-Z]\\w*$',
-          //     data: '123'
-          //   }
-          // ])
+          expect(err.requestErrors).to.deep.equal([
+            {
+              type: 'form',
+              keyword: 'pattern',
+              dataPath: 'username',
+              message: 'invalid form (pattern, ^[a-zA-Z]\\w*$)',
+              schema: '^[a-zA-Z]\\w*$',
+              data: '123'
+            }
+          ])
 
           return next(err)
         })
@@ -1066,60 +1135,60 @@ describe('osprey method handler', function () {
           })
       })
 
-      // it('should ignore unknown files and fields', function () {
-      //   var app = router()
+      it('should ignore unknown files and fields (RAML 0.8)', function () {
+        var app = router()
 
-      //   app.post('/', handler({
-      //     body: {
-      //       'multipart/form-data': {
-      //         formParameters: {
-      //           file: {
-      //             type: 'file'
-      //           }
-      //         }
-      //       }
-      //     }
-      //   }), function (req, res) {
-      //     var callCount = 0
+        app.post('/', handler({
+          body: {
+            'multipart/form-data': {
+              formParameters: {
+                file: {
+                  type: 'file'
+                }
+              }
+            }
+          }
+        }, '/', 'POST', { RAMLVersion: 'RAML08' }), function (req, res) {
+          var callCount = 0
 
-      //     function called (name, value) {
-      //       callCount++
-      //       expect(name).to.equal('file')
-      //       expect(value).to.be.an('object')
-      //     }
+          function called (name, value) {
+            callCount++
+            expect(name).to.equal('file')
+            expect(value).to.be.an('object')
+          }
 
-      //     req.form.on('field', called)
+          req.form.on('field', called)
 
-      //     req.form.on('file', function (name, stream) {
-      //       called(name, stream)
+          req.form.on('file', function (name, stream) {
+            called(name, stream)
 
-      //       stream.resume()
-      //     })
+            stream.resume()
+          })
 
-      //     req.form.on('finish', function () {
-      //       expect(callCount).to.equal(1)
+          req.form.on('finish', function () {
+            expect(callCount).to.equal(1)
 
-      //       res.end('success')
-      //     })
+            res.end('success')
+          })
 
-      //     req.pipe(req.form)
-      //   })
+          req.pipe(req.form)
+        })
 
-      //   return popsicle.default({
-      //     url: '/',
-      //     method: 'post',
-      //     body: popsicle.form({
-      //       file: fs.createReadStream(join(__dirname, '..', 'LICENSE')),
-      //       another: fs.createReadStream(join(__dirname, '..', 'README.md')),
-      //       random: 'hello world'
-      //     })
-      //   })
-      //     .use(server(createServer(app)))
-      //     .then(function (res) {
-      //       expect(res.body).to.equal('success')
-      //       expect(res.status).to.equal(200)
-      //     })
-      // })
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          body: popsicle.form({
+            file: fs.createReadStream(join(__dirname, '..', 'LICENSE')),
+            another: fs.createReadStream(join(__dirname, '..', 'README.md')),
+            random: 'hello world'
+          })
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
     })
 
     describe('unknown', function () {
@@ -1175,61 +1244,61 @@ describe('osprey method handler', function () {
       })
     })
 
-    // describe('multiple', function () {
-    //   it('should parse as the correct content type', function () {
-    //     var app = router()
+    describe('multiple', function () {
+      it('should parse as the correct content type', function () {
+        var app = router()
 
-    //     app.post('/', handler({
-    //       body: {
-    //         'application/json': {
-    //           schema: '{"properties":{"items":{"type":"string"}}' +
-    //             ',"required":["items"]}'
-    //         },
-    //         'multipart/form-data': {
-    //           formParameters: {
-    //             items: {
-    //               type: 'boolean',
-    //               repeat: true
-    //             }
-    //           }
-    //         }
-    //       }
-    //     }), function (req, res) {
-    //       var callCount = 0
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              schema: '{"properties":{"items":{"type":"string"}}' +
+                ',"required":["items"]}'
+            },
+            'multipart/form-data': {
+              formParameters: {
+                items: {
+                  type: 'boolean',
+                  repeat: true
+                }
+              }
+            }
+          }
+        }, '/', 'POST', { RAMLVersion: 'RAML08' }), function (req, res) {
+          var callCount = 0
 
-    //       req.form.on('field', function (name, value) {
-    //         callCount++
+          req.form.on('field', function (name, value) {
+            callCount++
 
-    //         expect(name).to.equal('items')
-    //         expect(value).to.equal(callCount === 1)
-    //       })
+            expect(name).to.equal('items')
+            expect(value).to.equal(callCount === 1)
+          })
 
-    //       req.form.on('finish', function () {
-    //         expect(callCount).to.equal(2)
+          req.form.on('finish', function () {
+            expect(callCount).to.equal(2)
 
-    //         res.end('success')
-    //       })
+            res.end('success')
+          })
 
-    //       req.pipe(req.form)
-    //     })
+          req.pipe(req.form)
+        })
 
-    //     var form = popsicle.form()
+        var form = popsicle.form()
 
-    //     form.append('items', 'true')
-    //     form.append('items', 'false')
+        form.append('items', 'true')
+        form.append('items', 'false')
 
-    //     return popsicle.default({
-    //       url: '/',
-    //       method: 'post',
-    //       body: form
-    //     })
-    //       .use(server(createServer(app)))
-    //       .then(function (res) {
-    //         expect(res.body).to.equal('success')
-    //         expect(res.status).to.equal(200)
-    //       })
-    //   })
-    // })
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          body: form
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+    })
 
     describe('empty', function () {
       it('should discard empty request bodies', function () {
