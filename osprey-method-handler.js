@@ -61,16 +61,6 @@ ramlValidate.TYPES.file = function (stream) {
 }
 
 /**
- * Set custom datetime sanitization.
- *
- * @param  {String} value
- * @return {?String}
- */
-ramlSanitize.TYPES.datetime = function (value) {
-  return !isNaN(Date.parse(value)) ? new Date(value).toUTCString() : null
-}
-
-/**
  * Export `ospreyMethodHandler`.
  */
 module.exports = ospreyMethodHandler
