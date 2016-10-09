@@ -70,7 +70,6 @@ describe('osprey method handler', function () {
           }
         }
       }, '/', 'GET', { RAMLVersion: 'RAML08' }), function (req, res) {
-        console.log(req.headers.date)
         expect(req.headers.date).to.be.an.instanceOf(Date)
 
         res.end('success')
@@ -192,6 +191,30 @@ describe('osprey method handler', function () {
       }, '/', 'GET'), function (req, res) {
         expect(req.url).to.equal('/')
         expect(req.query).to.deep.equal({})
+
+        res.end('success')
+      })
+
+      return popsicle.default('/?a=value&b=value')
+        .use(server(createServer(app)))
+        .then(function (res) {
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
+
+    it('should not filter undefined query parameters when discardUnknownQueryParameters is false', function () {
+      var app = router()
+
+      app.get('/', handler({
+        queryParameters: {
+          a: {
+            type: 'string'
+          }
+        }
+      }, '/', 'GET', { discardUnknownQueryParameters: false }), function (req, res) {
+        expect(req.url).to.equal('/?a=value&b=value')
+        expect(req.query).to.deep.equal({ a: 'value' })
 
         res.end('success')
       })
@@ -623,6 +646,20 @@ describe('osprey method handler', function () {
           .then(function (res) {
             expect(res.status).to.equal(200)
           })
+      })
+
+      it('should reject invalid schema', function () {
+        expect(function () {
+          handler({
+            body: {
+              'application/json': {
+                schema: JSON.stringify({
+                  $schema: 'http://invalid'
+                })
+              }
+            }
+          }, '/foo')
+        }).to.throw(/^Unable to compile JSON schema/)
       })
     })
 
