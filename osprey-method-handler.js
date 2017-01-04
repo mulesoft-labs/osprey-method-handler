@@ -231,7 +231,7 @@ function parseQuerystring (query) {
     return {}
   }
 
-  return querystring.parse(query.replace(/(?:%5B|\[)\d*(?:%5D|\])=/ig, '='))
+  return querystring.parse(query.replace(/(?:%5B|\[)\d*(?:%5D|])=/ig, '='))
 }
 
 /**
