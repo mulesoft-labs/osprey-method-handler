@@ -342,11 +342,56 @@ function jsonBodyHandler (body, path, method, options) {
     limit: options.limit,
     reviver: options.reviver
   })
-  var schema = body && (body.schema || body.properties) || undefined
   var middleware = [jsonBodyParser]
+  var schema = body && (body.properties || body.type || body.schema) || undefined
 
   if (schema) {
     middleware.push(jsonBodyValidationHandler(schema, path, method, options))
+  }
+
+  // Validate RAML 1.0 min/maxProperties and additionalProperties
+  var definedProperties = Object.keys(schema).length
+  var minProperties = body.minProperties
+  var maxProperties = body.maxProperties
+  var additionalProperties = body.additionalProperties !== false
+
+  if (minProperties > 0) {
+    middleware.push(function (req, res, next) {
+      if (Object.keys(req.body).length < minProperties) {
+        return next(createValidationError(formatRamlErrors([{
+          rule: 'minProperties',
+          attr: minProperties
+        }], 'json')))
+      }
+
+      return next()
+    })
+  }
+
+  if (maxProperties > 0) {
+    middleware.push(function (req, res, next) {
+      if (Object.keys(req.body).length > maxProperties) {
+        return next(createValidationError(formatRamlErrors([{
+          rule: 'maxProperties',
+          attr: maxProperties
+        }], 'json')))
+      }
+
+      return next()
+    })
+  }
+
+  if (!additionalProperties) {
+    middleware.push(function (req, res, next) {
+      if (Object.keys(req.body).length > definedProperties) {
+        return next(createValidationError(formatRamlErrors([{
+          rule: 'additionalProperties',
+          attr: additionalProperties
+        }], 'json')))
+      }
+
+      return next()
+    })
   }
 
   return compose(middleware)

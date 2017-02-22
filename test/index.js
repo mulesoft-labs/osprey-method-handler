@@ -433,6 +433,170 @@ describe('osprey method handler', function () {
             expect(res.status).to.equal(400)
           })
       })
+
+      it('should reject properties < minProperties', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              properties: RAML_DT,
+              minProperties: 2
+            }
+          }
+        }))
+
+        app.use(function (err, req, res, next) {
+          expect(err.ramlValidation).to.be.true
+          expect(err.requestErrors).to.deep.equal([
+            {
+              type: 'json',
+              keyword: 'minProperties',
+              dataPath: undefined,
+              message: 'invalid json (minProperties, 2)',
+              schema: 2,
+              data: undefined
+            }
+          ])
+          return next(err)
+        })
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: {
+            foo: 'bar'
+          }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+
+      it('should reject properties > maxProperties', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              properties: RAML_DT,
+              maxProperties: 1
+            }
+          }
+        }))
+
+        app.use(function (err, req, res, next) {
+          expect(err.ramlValidation).to.be.true
+          expect(err.requestErrors).to.deep.equal([
+            {
+              type: 'json',
+              keyword: 'maxProperties',
+              dataPath: undefined,
+              message: 'invalid json (maxProperties, 1)',
+              schema: 1,
+              data: undefined
+            }
+          ])
+          return next(err)
+        })
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: {
+            foo: 'bar',
+            baz: 'qux'
+          }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+      it('should reject additional properties when additionalProperties is false', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              properties: RAML_DT,
+              additionalProperties: false
+            }
+          }
+        }))
+
+        app.use(function (err, req, res, next) {
+          expect(err.ramlValidation).to.be.true
+          expect(err.requestErrors).to.deep.equal([
+            {
+              type: 'json',
+              keyword: 'additionalProperties',
+              dataPath: undefined,
+              message: 'invalid json (additionalProperties, false)',
+              schema: false,
+              data: undefined
+            }
+          ])
+          return next(err)
+        })
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: {
+            foo: 'bar',
+            baz: 'qux'
+          }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+      it('should accept valid RAML datatype', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              properties: RAML_DT,
+              minProperties: 1,
+              maxProperties: 1,
+              additionalProperties: false
+            }
+          }
+        }, '/', 'POST'), function (req, res) {
+          expect(req.body).to.deep.equal({ foo: 'bar' })
+
+          res.end('success')
+        })
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: {
+            foo: 'bar'
+          }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
     })
 
     describe('json', function () {
@@ -507,7 +671,8 @@ describe('osprey method handler', function () {
         app.post('/', handler({
           body: {
             'application/json': {
-              schema: JSON_SCHEMA
+              // 'schema' and 'type' are synonymous in RAML 1.0
+              type: JSON_SCHEMA
             }
           }
         }), function (req, res) {
