@@ -344,9 +344,14 @@ function jsonBodyHandler (body, path, method, options) {
   })
   var middleware = [jsonBodyParser]
   var schema = body && (body.properties || body.type || body.schema) || undefined
+  var isRAMLType = schema.constructor === {}.constructor
 
   if (schema) {
     middleware.push(jsonBodyValidationHandler(schema, path, method, options))
+  }
+
+  if (!isRAMLType) {
+    return compose(middleware)
   }
 
   // Validate RAML 1.0 min/maxProperties and additionalProperties
