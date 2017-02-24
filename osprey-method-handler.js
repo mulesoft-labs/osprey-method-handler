@@ -355,7 +355,6 @@ function jsonBodyHandler (body, path, method, options) {
   }
 
   // Validate RAML 1.0 min/maxProperties and additionalProperties
-  var definedProperties = Object.keys(schema).length
   var minProperties = body.minProperties
   var maxProperties = body.maxProperties
   var additionalProperties = body.additionalProperties !== false
@@ -388,7 +387,10 @@ function jsonBodyHandler (body, path, method, options) {
 
   if (!additionalProperties) {
     middleware.push(function (req, res, next) {
-      if (Object.keys(req.body).length > definedProperties) {
+      var additionalPropertyFound = Object.keys(req.body).some(function (key) {
+        return !schema.hasOwnProperty(key)
+      })
+      if (additionalPropertyFound) {
         return next(createValidationError(formatRamlErrors([{
           rule: 'additionalProperties',
           attr: additionalProperties
