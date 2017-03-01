@@ -5,7 +5,7 @@
 [![Build status][travis-image]][travis-url]
 [![Test coverage][coveralls-image]][coveralls-url]
 
-Middleware for validating requests and responses based on a [RAML method](https://github.com/raml-org/raml-spec/blob/master/raml-0.8.md#methods) object.
+Middleware for validating requests and responses based on a RAML method object.
 
 ## Installation
 
@@ -15,6 +15,7 @@ npm install osprey-method-handler --save
 
 ## Features
 
+* Supports RAML 0.8 and RAML 1.0
 * Header validation (ignores undocumented headers)
 * Query validation (ignores undocumented parameters)
 * Request body validation
@@ -73,6 +74,7 @@ Accepts the RAML schema as the first argument, method and path in subsequent arg
 * `limit` The [maximum bytes](https://github.com/expressjs/body-parser#limit-2) for XML, JSON and URL-encoded endpoints (default: `'100kb'`)
 * `parameterLimit` The [maximum number](https://github.com/expressjs/body-parser#parameterlimit) of URL-encoded parameters (default: `1000`)
 * `busboyLimits` The multipart limits defined by [Busboy](https://github.com/mscdex/busboy#busboy-methods)
+* `RAMLVersion` The RAML version passed to [raml-validate](https://github.com/mulesoft/node-raml-validate) (default: `'RAML10'`)
 
 ### Adding JSON schemas
 

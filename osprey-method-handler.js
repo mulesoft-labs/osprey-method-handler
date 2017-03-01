@@ -32,7 +32,10 @@ var DEFAULT_REQUEST_HEADER_PARAMS = {}
 
 // Fill header params with non-required parameters.
 standardHeaders.request.forEach(function (header) {
-  DEFAULT_REQUEST_HEADER_PARAMS[header] = { type: 'string' }
+  DEFAULT_REQUEST_HEADER_PARAMS[header] = {
+    type: 'string',
+    required: false
+  }
 })
 
 /**
@@ -196,7 +199,7 @@ function acceptsHandler (responses, path, method) {
  */
 function queryHandler (queryParameters, path, method, options) {
   var sanitize = ramlSanitize(queryParameters)
-  var validate = ramlValidate(queryParameters)
+  var validate = ramlValidate(queryParameters, options.RAMLVersion)
 
   return function ospreyQuery (req, res, next) {
     var reqUrl = parseurl(req)
@@ -228,7 +231,7 @@ function parseQuerystring (query) {
     return {}
   }
 
-  return querystring.parse(query.replace(/(?:%5B|\[)\d*(?:%5D|\])\=/ig, '='))
+  return querystring.parse(query.replace(/(?:%5B|\[)\d*(?:%5D|])=/ig, '='))
 }
 
 /**
@@ -242,9 +245,8 @@ function parseQuerystring (query) {
  */
 function headerHandler (headerParameters, path, method, options) {
   var headers = extend(DEFAULT_REQUEST_HEADER_PARAMS, lowercaseKeys(headerParameters))
-
   var sanitize = ramlSanitize(headers)
-  var validate = ramlValidate(headers)
+  var validate = ramlValidate(headers, options.RAMLVersion)
 
   return function ospreyMethodHeader (req, res, next) {
     var headers = sanitize(lowercaseKeys(req.headers))
@@ -340,11 +342,63 @@ function jsonBodyHandler (body, path, method, options) {
     limit: options.limit,
     reviver: options.reviver
   })
-
   var middleware = [jsonBodyParser]
+  var schema = body && (body.properties || body.type || body.schema) || undefined
+  var isRAMLType = schema.constructor === {}.constructor
 
-  if (body && body.schema) {
-    middleware.push(jsonBodyValidationHandler(body.schema, path, method))
+  if (schema) {
+    middleware.push(jsonBodyValidationHandler(schema, path, method, options))
+  }
+
+  if (!isRAMLType) {
+    return compose(middleware)
+  }
+
+  // Validate RAML 1.0 min/maxProperties and additionalProperties
+  var minProperties = body.minProperties
+  var maxProperties = body.maxProperties
+  var additionalProperties = body.additionalProperties !== false
+
+  if (minProperties > 0) {
+    middleware.push(function (req, res, next) {
+      if (Object.keys(req.body).length < minProperties) {
+        return next(createValidationError(formatRamlErrors([{
+          rule: 'minProperties',
+          attr: minProperties
+        }], 'json')))
+      }
+
+      return next()
+    })
+  }
+
+  if (maxProperties > 0) {
+    middleware.push(function (req, res, next) {
+      if (Object.keys(req.body).length > maxProperties) {
+        return next(createValidationError(formatRamlErrors([{
+          rule: 'maxProperties',
+          attr: maxProperties
+        }], 'json')))
+      }
+
+      return next()
+    })
+  }
+
+  if (!additionalProperties) {
+    middleware.push(function (req, res, next) {
+      var additionalPropertyFound = Object.keys(req.body).some(function (key) {
+        return !schema.hasOwnProperty(key)
+      })
+      if (additionalPropertyFound) {
+        return next(createValidationError(formatRamlErrors([{
+          rule: 'additionalProperties',
+          attr: additionalProperties
+        }], 'json')))
+      }
+
+      return next()
+    })
   }
 
   return compose(middleware)
@@ -353,36 +407,52 @@ function jsonBodyHandler (body, path, method, options) {
 /**
  * Validate JSON bodies.
  *
- * @param  {String}   str
- * @param  {String}   path
- * @param  {String}   method
+ * @param  {Object|String}  schema
+ * @param  {String}         path
+ * @param  {String}         method
  * @return {Function}
  */
-function jsonBodyValidationHandler (str, path, method) {
+function jsonBodyValidationHandler (schema, path, method, options) {
   var jsonSchemaCompatibility = require('json-schema-compatibility')
-  var schema
+  var isRAMLType = schema.constructor === {}.constructor
   var validate
 
-  try {
-    schema = JSON.parse(str)
+  // RAML data types
+  if (isRAMLType) {
+    validate = ramlValidate(schema, options.RAMLVersion)
 
-    // Convert draft-03 schema to 04.
-    if (JSON_SCHEMA_03.test(schema.$schema)) {
-      schema = jsonSchemaCompatibility.v4(schema)
-      schema.$schema = 'http://json-schema.org/draft-04/schema'
+  // JSON schema
+  } else {
+    try {
+      schema = JSON.parse(schema)
+
+      // Convert draft-03 schema to 04.
+      if (JSON_SCHEMA_03.test(schema.$schema)) {
+        schema = jsonSchemaCompatibility.v4(schema)
+        schema.$schema = 'http://json-schema.org/draft-04/schema'
+      }
+
+      validate = ajv.compile(schema)
+    } catch (err) {
+      err.message = 'Unable to compile JSON schema for ' + method + ' ' + path + ': ' + err.message
+      throw err
     }
-
-    validate = ajv.compile(schema)
-  } catch (err) {
-    err.message = 'Unable to compile JSON schema for ' + method + ' ' + path + ': ' + err.message
-    throw err
   }
 
   return function ospreyJsonBody (req, res, next) {
-    var valid = validate(req.body)
+    var result = validate(req.body)
 
-    if (!valid) {
-      return next(createValidationError(formatJsonErrors(validate.errors)))
+    // RAML data types
+    if (isRAMLType) {
+      if (!result.valid) {
+        return next(createValidationError(formatRamlErrors(result.errors, 'json')))
+      }
+
+    // JSON schema
+    } else {
+      if (!result) {
+        return next(createValidationError(formatJsonErrors(validate.errors)))
+      }
     }
 
     return next()
@@ -407,9 +477,10 @@ function urlencodedBodyHandler (body, path, method, options) {
   })
 
   var middleware = [urlencodedBodyParser]
+  var params = body && (body.formParameters || body.properties) || undefined
 
-  if (body && body.formParameters) {
-    middleware.push(urlencodedBodyValidationHandler(body.formParameters))
+  if (params) {
+    middleware.push(urlencodedBodyValidationHandler(params, options))
   }
 
   return compose(middleware)
@@ -421,9 +492,9 @@ function urlencodedBodyHandler (body, path, method, options) {
  * @param  {String} parameters
  * @return {String}
  */
-function urlencodedBodyValidationHandler (parameters) {
+function urlencodedBodyValidationHandler (parameters, options) {
   var sanitize = ramlSanitize(parameters)
-  var validate = ramlValidate(parameters)
+  var validate = ramlValidate(parameters, options.RAMLVersion)
 
   return function ospreyUrlencodedBody (req, res, next) {
     var body = sanitize(req.body)
@@ -548,7 +619,7 @@ function xmlBodyValidationHandler (str, path, method) {
  */
 function formDataBodyHandler (body, path, method, options) {
   var Busboy = require('busboy')
-  var params = body && body.formParameters || {}
+  var params = body && (body.formParameters || body.properties) || {}
   var validators = {}
   var sanitizers = {}
 
@@ -567,8 +638,8 @@ function formDataBodyHandler (body, path, method, options) {
     var errors = {}
 
     // Override `emit` to provide validations. Only validate when
-    // `formParameters` are set.
-    if (body && body.formParameters) {
+    // `formParameters` (or RAML 1.0 `properties`) are set.
+    if (body && (body.formParameters || body.properties)) {
       busboy.emit = function emit (type, name, value, a, b, c) {
         var close = type === 'field' ? noop : function () {
           value.resume()
@@ -634,7 +705,6 @@ function formDataBodyHandler (body, path, method, options) {
               }
             })
             .concat(values(errors))
-
           if (validationErrors.length) {
             Busboy.prototype.emit.call(
               this,
