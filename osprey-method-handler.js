@@ -460,7 +460,7 @@ function jsonBodyValidationHandler(schema, path, method, options) {
                 schema = jsonSchemaCompatibility.v4(schema)
                 schema.$schema = 'http://json-schema.org/draft-04/schema'
             }
-            console.log(schema);
+            //console.log(schema);
             validate = ajv.compile(schema)
         } catch (err) {
             err.message = 'Unable to compile JSON schema for ' + method + ' ' + path + ': ' + err.message
