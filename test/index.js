@@ -610,6 +610,8 @@ describe('osprey method handler', function () {
           }
         }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
           expect(req.body).to.deep.equal([ 'a', 'b', 'c' ])
+
+          res.end('success')
         })
 
         return popsicle.default({
@@ -667,6 +669,8 @@ describe('osprey method handler', function () {
           }
         }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
           expect(req.body).to.equal('test')
+
+          res.end('success')
         })
 
         return popsicle.default({
@@ -675,7 +679,7 @@ describe('osprey method handler', function () {
           headers: {
             'Content-Type': 'application/json; charset=utf-8'
           },
-          body: 'test'
+          body: '"test"'
         })
           .use(server(createServer(app)))
           .then(function (res) {
