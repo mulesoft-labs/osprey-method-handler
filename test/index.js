@@ -608,7 +608,7 @@ describe('osprey method handler', function () {
               items: 'string'
             }
           }
-        }, '/', 'POST'), function (req, res) {
+        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
           expect(req.body).to.deep.equal([ 'a', 'b', 'c' ])
         })
 
@@ -636,7 +636,7 @@ describe('osprey method handler', function () {
               items: 'string'
             }
           }
-        }, '/', 'POST'), function (req, res) {
+        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
           res.end('failure')
         })
 
@@ -665,7 +665,7 @@ describe('osprey method handler', function () {
               type: [ 'string' ]
             }
           }
-        }, '/', 'POST'), function (req, res) {
+        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
           expect(req.body).to.equal('test')
         })
 
@@ -692,7 +692,7 @@ describe('osprey method handler', function () {
               type: [ 'integer' ]
             }
           }
-        }, '/', 'POST'), function (req, res) {
+        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
           res.send('failure')
         })
 
@@ -1096,6 +1096,7 @@ describe('osprey method handler', function () {
         }, '/', 'POST', { RAMLVersion: 'RAML10' }))
 
         app.use(function (err, req, res, next) {
+          console.log(require('util').inspect(err, false, null))
           expect(err.ramlValidation).to.be.true
           expect(err.requestErrors).to.deep.equal([
             {
