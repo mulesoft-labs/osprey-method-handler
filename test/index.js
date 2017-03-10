@@ -1100,7 +1100,6 @@ describe('osprey method handler', function () {
         }, '/', 'POST', { RAMLVersion: 'RAML10' }))
 
         app.use(function (err, req, res, next) {
-          console.log(require('util').inspect(err, false, null))
           expect(err.ramlValidation).to.be.true
           expect(err.requestErrors).to.deep.equal([
             {
