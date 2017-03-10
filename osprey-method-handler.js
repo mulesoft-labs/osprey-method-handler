@@ -343,9 +343,12 @@ function jsonBodyHandler (body, path, method, options) {
     reviver: options.reviver
   })
   var middleware = [jsonBodyParser]
-  var schema = body && (body.properties || body.type || body.schema) || undefined
 
-  if (Array.isArray(schema)) {
+  var schema = body && (body.properties || body.type) || undefined
+
+  if (!schema) {
+    schema = body.schema
+  } else if (Array.isArray(schema)) {
     schema = body
   }
 
