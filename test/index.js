@@ -597,6 +597,120 @@ describe('osprey method handler', function () {
             expect(res.status).to.equal(200)
           })
       })
+
+      it('should accept arrays as root elements', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              type: [ 'array' ],
+              items: 'string'
+            }
+          }
+        }, '/', 'POST'), function (req, res) {
+          expect(req.body).to.deep.equal([ 'a', 'b', 'c' ])
+        })
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: [ 'a', 'b', 'c' ]
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+      it('should reject objects when an array is set as root element', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              type: [ 'array' ],
+              items: 'string'
+            }
+          }
+        }, '/', 'POST'), function (req, res) {
+          res.end('failure')
+        })
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: {
+            foo: 'bar'
+          }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+
+      it('should accept strings as root elements', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              type: [ 'string' ]
+            }
+          }
+        }, '/', 'POST'), function (req, res) {
+          expect(req.body).to.equal('test')
+        })
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: 'test'
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+      it('should reject objects when a string is set as root element', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              type: [ 'integer' ]
+            }
+          }
+        }, '/', 'POST'), function (req, res) {
+          res.send('failure')
+        })
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: {
+            foo: 'bar'
+          }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
     })
 
     describe('json', function () {
