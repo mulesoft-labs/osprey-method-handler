@@ -344,6 +344,11 @@ function jsonBodyHandler (body, path, method, options) {
   })
   var middleware = [jsonBodyParser]
   var schema = body && (body.properties || body.type || body.schema) || undefined
+
+  if (Array.isArray(schema)) {
+    schema = body
+  }
+
   var isRAMLType = schema.constructor === {}.constructor
 
   if (schema) {
