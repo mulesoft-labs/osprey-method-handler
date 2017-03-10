@@ -97,7 +97,7 @@ describe('osprey method handler', function () {
             format: 'rfc2616'
           }
         }
-      }, '/', 'GET'), function (req, res) {
+      }, '/', 'GET', { RAMLVersion: 'RAML10' }), function (req, res) {
         expect(req.headers.date).to.equal(new Date(req.headers.date).toUTCString())
 
         res.end('success')
@@ -286,7 +286,7 @@ describe('osprey method handler', function () {
             type: 'array'
           }
         }
-      }, '/', 'GET'), function (req, res) {
+      }, '/', 'GET', { RAMLVersion: 'RAML10' }), function (req, res) {
         expect(req.url).to.equal('/?foo=a&foo=b&foo=c')
         expect(req.query).to.deep.equal({ foo: ['a', 'b', 'c'] })
 
@@ -789,7 +789,7 @@ describe('osprey method handler', function () {
               type: JSON_SCHEMA
             }
           }
-        }), function (req, res) {
+        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
           expect(req.body).to.deep.equal([true, false])
 
           res.end('success')
@@ -1093,7 +1093,7 @@ describe('osprey method handler', function () {
               }
             }
           }
-        }))
+        }, '/', 'POST', { RAMLVersion: 'RAML10' }))
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.be.true
@@ -1174,7 +1174,7 @@ describe('osprey method handler', function () {
               }
             }
           }
-        }), function (req, res) {
+        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
           expect(req.body).to.deep.equal({ a: [true, true] })
 
           res.end('success')
