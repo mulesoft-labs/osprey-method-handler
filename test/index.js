@@ -675,7 +675,7 @@ describe('osprey method handler', function () {
               type: JSON_SCHEMA
             }
           }
-        }), function (req, res) {
+        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
           expect(req.body).to.deep.equal([true, false])
 
           res.end('success')
