@@ -344,7 +344,7 @@ function jsonBodyHandler (body, path, method, options) {
   })
   var middleware = [jsonBodyParser]
   var schema = body && (body.properties || body.type || body.schema) || undefined
-  var isRAMLType = schema.constructor === {}.constructor
+  var isRAMLType = schema && schema.constructor === {}.constructor
 
   if (schema) {
     middleware.push(jsonBodyValidationHandler(schema, path, method, options))
