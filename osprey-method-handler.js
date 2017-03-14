@@ -343,16 +343,19 @@ function jsonBodyHandler (body, path, method, options) {
     reviver: options.reviver
   })
   var middleware = [jsonBodyParser]
-
   var schema = body && (body.properties || body.type) || undefined
+  var isRAMLType = schema ? schema.constructor === {}.constructor : false
 
+  // This is most likely a JSON schema
   if (!schema) {
     schema = body.schema
-  } else if (Array.isArray(schema)) {
+  // otherwise, it's an inline type
+  } else if (!isRAMLType) {
+    schema = body
+    isRAMLType = true
+  } else if (isRAMLType && Object.keys(schema).length === 0) {
     schema = body
   }
-
-  var isRAMLType = schema.constructor === {}.constructor
 
   if (schema) {
     middleware.push(jsonBodyValidationHandler(schema, path, method, options))
