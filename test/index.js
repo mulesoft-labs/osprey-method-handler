@@ -693,7 +693,7 @@ describe('osprey method handler', function () {
         app.post('/', handler({
           body: {
             'application/json': {
-              type: [ 'integer' ]
+              type: [ 'string' ]
             }
           }
         }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
@@ -709,6 +709,66 @@ describe('osprey method handler', function () {
           body: {
             foo: 'bar'
           }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+
+      it('should accept objects with empty properties', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              type: [ 'object' ],
+              properties: {}
+            }
+          }
+        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
+          expect(req.body).to.deep.equal({foo: 'bar'})
+
+          res.end('success')
+        })
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: {
+            foo: 'bar'
+          }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+      it('should reject invalid objects', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              type: [ 'object' ],
+              properties: {}
+            }
+          }
+        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
+          res.send('failure')
+        })
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: '"foo"'
         })
           .use(server(createServer(app)))
           .then(function (res) {
