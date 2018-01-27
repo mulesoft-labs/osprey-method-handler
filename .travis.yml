@@ -10,9 +10,9 @@ install:
   - npm install libxmljs || true
 
 node_js:
-  - "0.10"
-  - "0.12"
   - "4"
+  - "6"
+  - "8"
   - "node"
 
 after_script: "npm install coveralls@2 && cat ./coverage/lcov.info | coveralls"
