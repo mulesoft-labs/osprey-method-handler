@@ -425,7 +425,13 @@ function jsonBodyHandler (body, path, method, options) {
  */
 function jsonBodyValidationHandler (schema, path, method, options) {
   var jsonSchemaCompatibility = require('json-schema-compatibility')
-  var isRAMLType = schema.constructor === {}.constructor
+  if (Array.isArray(schema)) {
+    schema = schema[0]
+  }
+  if (schema.type === 'json' && typeof schema.content === 'string') {
+    schema = schema.content
+  }
+  var isRAMLType = typeof schema === 'object'
   var validate
 
   // RAML data types
