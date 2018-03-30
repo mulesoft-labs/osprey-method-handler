@@ -14,7 +14,14 @@ var compose = require('compose-middleware').compose
 var Ajv = require('ajv')
 var debug = require('debug')('osprey-method-handler')
 
-var ajv = Ajv({ allErrors: true, verbose: true, jsonPointers: true, errorDataPath: 'property' })
+var ajv = Ajv({
+  schemaId: 'auto',
+  allErrors: true,
+  verbose: true,
+  jsonPointers: true,
+  errorDataPath: 'property'
+})
+ajv.addMetaSchema(require('ajv/lib/refs/json-schema-draft-04.json'))
 
 /**
  * Detect JSON schema v3.
