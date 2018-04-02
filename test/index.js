@@ -1,6 +1,5 @@
 /* global describe, it */
-
-require('es6-promise').polyfill()
+/* eslint-disable no-unused-expressions */
 
 var expect = require('chai').expect
 var popsicle = require('popsicle')
@@ -1697,7 +1696,7 @@ describe('osprey method handler', function () {
         })
           .use(server(createServer(app)))
           .then(function (res) {
-            expect(res.body).to.equal(null)
+            expect(res.body).to.equal('')
             expect(res.status).to.equal(200)
           })
       })
