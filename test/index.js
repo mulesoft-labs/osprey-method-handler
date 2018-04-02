@@ -32,7 +32,7 @@ describe('osprey method handler', function () {
       }, '/', 'GET'))
 
       app.use(function (err, req, res, next) {
-        expect(err.ramlValidation).to.be.true
+        expect(err.ramlValidation).to.equal(true)
         expect(err.requestErrors).to.deep.equal([
           {
             type: 'header',
@@ -131,7 +131,7 @@ describe('osprey method handler', function () {
       }, '/', 'GET'))
 
       app.use(function (err, req, res, next) {
-        expect(err.ramlValidation).to.be.true
+        expect(err.ramlValidation).to.equal(true)
         expect(err.requestErrors).to.deep.equal([
           {
             type: 'query',
@@ -408,7 +408,7 @@ describe('osprey method handler', function () {
         }))
 
         app.use(function (err, req, res, next) {
-          expect(err.ramlValidation).to.be.true
+          expect(err.ramlValidation).to.equal(true)
           expect(err.requestErrors).to.deep.equal([
             {
               type: 'json',
@@ -446,7 +446,7 @@ describe('osprey method handler', function () {
         }))
 
         app.use(function (err, req, res, next) {
-          expect(err.ramlValidation).to.be.true
+          expect(err.ramlValidation).to.equal(true)
           expect(err.requestErrors).to.deep.equal([
             {
               type: 'json',
@@ -489,7 +489,7 @@ describe('osprey method handler', function () {
         }))
 
         app.use(function (err, req, res, next) {
-          expect(err.ramlValidation).to.be.true
+          expect(err.ramlValidation).to.equal(true)
           expect(err.requestErrors).to.deep.equal([
             {
               type: 'json',
@@ -532,7 +532,7 @@ describe('osprey method handler', function () {
         }))
 
         app.use(function (err, req, res, next) {
-          expect(err.ramlValidation).to.be.true
+          expect(err.ramlValidation).to.equal(true)
           expect(err.requestErrors).to.deep.equal([
             {
               type: 'json',
@@ -791,7 +791,7 @@ describe('osprey method handler', function () {
         }))
 
         app.use(function (err, req, res, next) {
-          expect(err.ramlValidation).to.be.true
+          expect(err.ramlValidation).to.equal(true)
           expect(err.requestErrors).to.deep.equal([
             {
               type: 'json',
@@ -1040,7 +1040,7 @@ describe('osprey method handler', function () {
           }))
 
           app.use(function (err, req, res, next) {
-            expect(err.ramlValidation).to.be.true
+            expect(err.ramlValidation).to.equal(true)
             expect(err.requestErrors).to.deep.equal([
               {
                 type: 'xml',
@@ -1159,7 +1159,7 @@ describe('osprey method handler', function () {
         }, '/', 'POST', { RAMLVersion: 'RAML10' }))
 
         app.use(function (err, req, res, next) {
-          expect(err.ramlValidation).to.be.true
+          expect(err.ramlValidation).to.equal(true)
           expect(err.requestErrors).to.deep.equal([
             {
               type: 'form',
@@ -1281,7 +1281,7 @@ describe('osprey method handler', function () {
         })
 
         app.use(function (err, req, res, next) {
-          expect(err.ramlValidation).to.be.true
+          expect(err.ramlValidation).to.equal(true)
           expect(err.requestErrors).to.deep.equal([
             {
               type: 'form',
@@ -1489,7 +1489,7 @@ describe('osprey method handler', function () {
               stream,
               fs.createReadStream(join(__dirname, '..', 'LICENSE')),
               function (err, equal) {
-                expect(equal).to.be.true
+                expect(equal).to.equal(true)
 
                 return err ? res.end() : res.end('success')
               }
@@ -1747,7 +1747,7 @@ describe('osprey method handler', function () {
       })
         .use(server(createServer(app)))
         .then(function (res) {
-          expect(res.body).to.be.a.string
+          expect(typeof res.body).to.equal('string')
           expect(res.status).to.equal(200)
         })
     })
