@@ -1,6 +1,5 @@
 /* global describe, it */
-
-require('es6-promise').polyfill()
+/* eslint-disable no-unused-expressions */
 
 var expect = require('chai').expect
 var popsicle = require('popsicle')
