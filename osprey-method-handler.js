@@ -163,7 +163,7 @@ function acceptsHandler (responses, path, method) {
     })
     .forEach(function (code) {
       var response = responses[code]
-      var body = response && response.body || {}
+      var body = (response && response.body) || {}
 
       Object.keys(body).forEach(function (type) {
         accepts[type] = true
@@ -350,7 +350,7 @@ function jsonBodyHandler (body, path, method, options) {
     reviver: options.reviver
   })
   var middleware = [jsonBodyParser]
-  var schema = body && (body.properties || body.type) || undefined
+  var schema = (body && (body.properties || body.type)) || undefined
   var isRAMLType = schema ? schema.constructor === {}.constructor : false
 
   // This is most likely a JSON schema
@@ -501,7 +501,7 @@ function urlencodedBodyHandler (body, path, method, options) {
   })
 
   var middleware = [urlencodedBodyParser]
-  var params = body && (body.formParameters || body.properties) || undefined
+  var params = (body && (body.formParameters || body.properties)) || undefined
 
   if (params) {
     middleware.push(urlencodedBodyValidationHandler(params, options))
@@ -643,7 +643,7 @@ function xmlBodyValidationHandler (str, path, method) {
  */
 function formDataBodyHandler (body, path, method, options) {
   var Busboy = require('busboy')
-  var params = body && (body.formParameters || body.properties) || {}
+  var params = (body && (body.formParameters || body.properties)) || {}
   var validators = {}
   var sanitizers = {}
 
