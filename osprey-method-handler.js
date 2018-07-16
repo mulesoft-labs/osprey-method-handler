@@ -52,6 +52,7 @@ standardHeaders.request.forEach(function (header) {
  */
 var BODY_HANDLERS = [
   ['application/json', jsonBodyHandler],
+  ['application/vnd.api+json', jsonBodyHandler],
   ['text/xml', xmlBodyHandler],
   ['application/x-www-form-urlencoded', urlencodedBodyHandler],
   ['multipart/form-data', formDataBodyHandler]
