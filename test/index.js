@@ -776,6 +776,64 @@ describe('osprey method handler', function () {
       })
     })
 
+    describe('json api', function () {
+      var JSON_SCHEMA = '{"properties":{"x":{"type":"string"}},"required":["x"]}'
+      it('should reject invalid request bodies', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/vnd.api+json': {
+              schema: JSON_SCHEMA
+            }
+          }
+        }))
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          body: 'foobar',
+          headers: {
+            'Content-Type': 'application/vnd.api+json'
+          }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+
+      it('should parse valid json', function () {
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/vnd.api+json': {
+              type: JSON_SCHEMA
+            }
+          }
+        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
+          expect(req.body).to.deep.equal([true, false])
+
+          res.end('success')
+        })
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          body: [true, false],
+          headers: {
+            'Content-Type': 'application/vnd.api+json'
+          }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+    })
+
     describe('json', function () {
       var JSON_SCHEMA = '{"properties":{"x":{"type":"string"}},"required":["x"]}'
 
