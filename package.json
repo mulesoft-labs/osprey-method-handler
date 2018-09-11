@@ -51,7 +51,7 @@
     "body-parser": "^1.15.2",
     "busboy": "^0.2.9",
     "compose-middleware": "^4.0.0",
-    "debug": "^3.1.0",
+    "debug": "^4.0.0",
     "http-errors": "^1.2.8",
     "is-stream": "^1.0.1",
     "json-schema-compatibility": "^1.0.1",
