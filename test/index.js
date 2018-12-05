@@ -726,7 +726,7 @@ describe('osprey method handler', function () {
             }
           }
         }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
-          expect(req.body).to.deep.equal({foo: 'bar'})
+          expect(req.body).to.deep.equal({ foo: 'bar' })
 
           res.end('success')
         })
