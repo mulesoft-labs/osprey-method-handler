@@ -10,7 +10,7 @@
   "scripts": {
     "lint": "standard",
     "test-spec": "mocha -R spec --bail",
-    "test-cov": "istanbul cover node_modules/mocha/bin/_mocha -- -R spec --bail",
+    "test-cov": "nyc node_modules/mocha/bin/_mocha -- -R spec --bail",
     "test": "npm run lint && npm run test-cov"
   },
   "repository": {
@@ -38,8 +38,8 @@
   "devDependencies": {
     "chai": "^4.1.2",
     "finalhandler": "^1.1.1",
-    "istanbul": "^0.4.5",
     "mocha": "^6.1.4",
+    "nyc": "^14.1.0",
     "osprey-router": "^0.6.0",
     "popsicle": "^10.0.0",
     "popsicle-server": "^2.0.0",
