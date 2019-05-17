@@ -1,11 +1,10 @@
 # Osprey Method Handler
 
-[![Greenkeeper badge](https://badges.greenkeeper.io/mulesoft-labs/osprey-method-handler.svg)](https://greenkeeper.io/)
-
 [![NPM version][npm-image]][npm-url]
 [![NPM Downloads][downloads-image]][downloads-url]
 [![Build status][travis-image]][travis-url]
 [![Test coverage][coveralls-image]][coveralls-url]
+[![Greenkeeper badge](https://badges.greenkeeper.io/mulesoft-labs/osprey-method-handler.svg)](https://greenkeeper.io/)
 
 Middleware for validating requests and responses based on a RAML method object.
 
