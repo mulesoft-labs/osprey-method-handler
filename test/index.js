@@ -915,8 +915,6 @@ describe('osprey method handler', function () {
           jsonPointers: true,
           errorDataPath: 'property'
         })
-        // ajv.addMetaSchema(require('ajv/lib/refs/json-schema-draft-07.json'))
-        // ajv.addMetaSchema(require('ajv/lib/refs/json-schema-draft-03.json'))
 
         var compile = sinon.spy(ajv, 'compile')
 
@@ -1054,7 +1052,6 @@ describe('osprey method handler', function () {
           jsonPointers: true,
           errorDataPath: 'property'
         })
-        // ajv.addMetaSchema(require('ajv/lib/refs/json-schema-draft-07.json'))
         ajv.addMetaSchema(require('ajv/lib/refs/json-schema-draft-04.json'))
 
         var addSchema = sinon.spy(ajv, 'addSchema')
