@@ -2,6 +2,7 @@
 /* eslint-disable no-unused-expressions */
 
 var expect = require('chai').expect
+var sinon = require('sinon')
 var popsicle = require('popsicle')
 var server = require('popsicle-server')
 var router = require('osprey-router')
@@ -9,6 +10,7 @@ var finalhandler = require('finalhandler')
 var fs = require('fs')
 var join = require('path').join
 var streamEqual = require('stream-equal')
+const Ajv = require('ajv')
 var handler = require('../')
 
 describe('osprey method handler', function () {
@@ -905,6 +907,60 @@ describe('osprey method handler', function () {
           })
       })
 
+      it('should use a custom ajv instance for validation if provided in options', function () {
+        var ajv = Ajv({
+          schemaId: 'auto',
+          allErrors: true,
+          verbose: true,
+          jsonPointers: true,
+          errorDataPath: 'property'
+        })
+        // ajv.addMetaSchema(require('ajv/lib/refs/json-schema-draft-07.json'))
+        // ajv.addMetaSchema(require('ajv/lib/refs/json-schema-draft-03.json'))
+
+        var compile = sinon.spy(ajv, 'compile')
+
+        var schema = {
+          $schema: 'http://json-schema.org/draft-07/schema',
+          type: 'object',
+          properties: {
+            name: {
+              type: 'string'
+            }
+          },
+          required: [
+            'name'
+          ]
+        }
+        var app = router()
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              schema: JSON.stringify(schema)
+            }
+          }
+        },
+        null,
+        null,
+        { ajv }
+        ))
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          body: '{"url":"http://example.com"}',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+            sinon.assert.calledWith(compile, schema)
+          })
+      })
+
       it('should support external $ref when added', function () {
         var schema = JSON.stringify({
           $schema: 'http://json-schema.org/draft-04/schema#',
@@ -987,6 +1043,106 @@ describe('osprey method handler', function () {
           .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(200)
+          })
+      })
+
+      it('should support external $ref with a custom ajv instance', function () {
+        var ajv = Ajv({
+          schemaId: 'auto',
+          allErrors: true,
+          verbose: true,
+          jsonPointers: true,
+          errorDataPath: 'property'
+        })
+        // ajv.addMetaSchema(require('ajv/lib/refs/json-schema-draft-07.json'))
+        ajv.addMetaSchema(require('ajv/lib/refs/json-schema-draft-04.json'))
+
+        var addSchema = sinon.spy(ajv, 'addSchema')
+
+        var schema = JSON.stringify({
+          $schema: 'http://json-schema.org/draft-04/schema#',
+          title: 'Product set',
+          type: 'array',
+          items: {
+            title: 'Product',
+            type: 'object',
+            properties: {
+              id: {
+                description: 'The unique identifier for a product',
+                type: 'number'
+              },
+              name: {
+                type: 'string'
+              },
+              price: {
+                type: 'number',
+                minimum: 0,
+                exclusiveMinimum: true
+              },
+              tags: {
+                type: 'array',
+                items: {
+                  type: 'string'
+                },
+                minItems: 1,
+                uniqueItems: true
+              },
+              dimensions: {
+                type: 'object',
+                properties: {
+                  length: { type: 'number' },
+                  width: { type: 'number' },
+                  height: { type: 'number' }
+                },
+                required: ['length', 'width', 'height']
+              },
+              warehouseLocation: {
+                description: 'Coordinates of the warehouse with the product',
+                $ref: 'http://json-schema.org/geo'
+              }
+            },
+            required: ['id', 'name', 'price']
+          }
+        })
+
+        var app = router()
+
+        // Register GeoJSON schema.
+        handler.addJsonSchema(
+          require('./vendor/geo.json'),
+          'http://json-schema.org/geo',
+          { ajv }
+        )
+
+        app.post('/', handler({
+          body: {
+            'application/json': {
+              schema: schema
+            }
+          }
+        }, null, null, { ajv }
+        ), function (req, res) {
+          res.end('success')
+        })
+
+        return popsicle.default({
+          url: '/',
+          method: 'post',
+          body: [{
+            id: 123,
+            name: 'Product',
+            price: 12.34,
+            tags: ['foo', 'bar'],
+            warehouseLocation: {
+              latitude: 123,
+              longitude: 456
+            }
+          }]
+        })
+          .use(server(createServer(app)))
+          .then(function (res) {
+            expect(res.status).to.equal(200)
+            sinon.assert.calledOnce(addSchema)
           })
       })
 
