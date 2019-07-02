@@ -252,12 +252,12 @@ function parseQuerystring (query) {
  * @return {Function}
  */
 function headerHandler (headerParameters, path, method, options) {
-  var headers = extend(DEFAULT_REQUEST_HEADER_PARAMS, lowercaseKeys(headerParameters))
+  var headers = extend(DEFAULT_REQUEST_HEADER_PARAMS, lowercaseKeys(headerParameters || {}))
   var sanitize = ramlSanitize(headers)
   var validate = ramlValidate(headers, options.RAMLVersion)
 
   return function ospreyMethodHeader (req, res, next) {
-    var headers = sanitize(lowercaseKeys(req.headers))
+    var headers = sanitize(lowercaseKeys(req.headers || {}))
     var result = validate(headers)
 
     if (!result.valid) {
