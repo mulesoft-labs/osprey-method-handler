@@ -1767,6 +1767,7 @@ describe('osprey method handler', function () {
       }))
 
       return makeFetcher(app).fetch('/', {
+        method: 'GET',
         headers: {
           'Accept': 'application/json'
         }
@@ -1794,6 +1795,7 @@ describe('osprey method handler', function () {
       })
 
       return makeFetcher(app).fetch('/', {
+        method: 'GET',
         headers: {
           'Accept': 'application/json, text/html'
         }
@@ -1820,6 +1822,7 @@ describe('osprey method handler', function () {
       })
 
       return makeFetcher(app).fetch('/', {
+        method: 'GET',
         headers: {
           'Accept': 'foo/bar'
         }
