@@ -813,15 +813,13 @@ describe('osprey method handler', function () {
           }
         }))
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           body: 'foobar',
           headers: {
             'Content-Type': 'application/vnd.api+json'
           }
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
           })
@@ -842,15 +840,13 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
-          body: [true, false],
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          body: JSON.stringify([true, false]),
           headers: {
             'Content-Type': 'application/vnd.api+json'
           }
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('success')
             expect(res.status).to.equal(200)
