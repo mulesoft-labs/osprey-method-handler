@@ -79,8 +79,13 @@ module.exports.addJsonSchema = addJsonSchema
  * @param {Object} schema
  * @param {String} key
  */
-function addJsonSchema (schema, key) {
-  ajv.addSchema(schema, key)
+function addJsonSchema (schema, key, options) {
+  options = options || {}
+  if (options.ajv) {
+    options.ajv.addSchema(schema, key)
+  } else {
+    ajv.addSchema(schema, key)
+  }
 }
 
 /**
@@ -451,12 +456,12 @@ function jsonBodyValidationHandler (schema, path, method, options) {
       schema = JSON.parse(schema)
 
       // Convert draft-03 schema to 04.
-      if (JSON_SCHEMA_03.test(schema.$schema)) {
+      if (!options.ajv && JSON_SCHEMA_03.test(schema.$schema)) {
         schema = jsonSchemaCompatibility.v4(schema)
         schema.$schema = 'http://json-schema.org/draft-04/schema'
       }
 
-      validate = ajv.compile(schema)
+      validate = options.ajv ? options.ajv.compile(schema) : ajv.compile(schema)
     } catch (err) {
       err.message = 'Unable to compile JSON schema for ' + method + ' ' + path + ': ' + err.message
       throw err
