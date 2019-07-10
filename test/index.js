@@ -3,15 +3,54 @@
 
 var expect = require('chai').expect
 var sinon = require('sinon')
-var popsicle = require('popsicle')
-var server = require('popsicle-server')
 var router = require('osprey-router')
-var finalhandler = require('finalhandler')
 var fs = require('fs')
 var join = require('path').join
 var streamEqual = require('stream-equal')
 const Ajv = require('ajv')
 var handler = require('../')
+var FormData = require('form-data')
+
+/* Helps using popsicle-server with popsicle version 12+.
+ *
+ * Inspired by popsicle 12.0+ code.
+ */
+function makeFetcher (app) {
+  var compose = require('throwback').compose
+  var Request = require('servie').Request
+  var popsicle = require('popsicle')
+  var popsicleServer = require('popsicle-server')
+  var finalhandler = require('finalhandler')
+
+  // Set response text to "body" property to mimic popsicle v10
+  // response interface.
+
+  function responseBodyMiddleware (req, next) {
+    return next().then(res => {
+      return res.text().then(body => {
+        res.body = body
+        return res
+      })
+    })
+  }
+
+  function createServer (router) {
+    return function (req, res) {
+      router(req, res, finalhandler(req, res))
+    }
+  }
+
+  var popsicleServerMiddleware = popsicleServer(createServer(app))
+  var middleware = compose([
+    responseBodyMiddleware,
+    popsicleServerMiddleware,
+    popsicle.middleware
+  ])
+
+  return {
+    fetch: popsicle.toFetch(middleware, Request)
+  }
+}
 
 describe('osprey method handler', function () {
   it('should return a middleware function', function () {
@@ -49,13 +88,12 @@ describe('osprey method handler', function () {
         return next(err)
       })
 
-      return popsicle.default({
-        url: '/',
+      return makeFetcher(app).fetch('/', {
+        method: 'GET',
         headers: {
           'X-Header': 'abc'
         }
       })
-        .use(server(createServer(app)))
         .then(function (res) {
           expect(res.status).to.equal(400)
         })
@@ -75,13 +113,12 @@ describe('osprey method handler', function () {
 
         res.end('success')
       })
-      return popsicle.default({
-        url: '/',
+      return makeFetcher(app).fetch('/', {
+        method: 'GET',
         headers: {
           date: new Date().toString()
         }
       })
-        .use(server(createServer(app)))
         .then(function (res) {
           expect(res.body).to.equal('success')
           expect(res.status).to.equal(200)
@@ -103,13 +140,12 @@ describe('osprey method handler', function () {
 
         res.end('success')
       })
-      return popsicle.default({
-        url: '/',
+      return makeFetcher(app).fetch('/', {
+        method: 'GET',
         headers: {
           date: new Date().toUTCString()
         }
       })
-        .use(server(createServer(app)))
         .then(function (res) {
           expect(res.body).to.equal('success')
           expect(res.status).to.equal(200)
@@ -148,8 +184,9 @@ describe('osprey method handler', function () {
         return next(err)
       })
 
-      return popsicle.default('/?a=value&b=value')
-        .use(server(createServer(app)))
+      return makeFetcher(app).fetch('/?a=value&b=value', {
+        method: 'GET'
+      })
         .then(function (res) {
           expect(res.status).to.equal(400)
         })
@@ -171,8 +208,9 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle.default('/?a=value&b=value')
-        .use(server(createServer(app)))
+      return makeFetcher(app).fetch('/?a=value&b=value', {
+        method: 'GET'
+      })
         .then(function (res) {
           expect(res.body).to.equal('success')
           expect(res.status).to.equal(200)
@@ -196,8 +234,9 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle.default('/?a=value&b=value')
-        .use(server(createServer(app)))
+      return makeFetcher(app).fetch('/?a=value&b=value', {
+        method: 'GET'
+      })
         .then(function (res) {
           expect(res.body).to.equal('success')
           expect(res.status).to.equal(200)
@@ -220,8 +259,9 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle.default('/?a=value&b=value')
-        .use(server(createServer(app)))
+      return makeFetcher(app).fetch('/?a=value&b=value', {
+        method: 'GET'
+      })
         .then(function (res) {
           expect(res.body).to.equal('success')
           expect(res.status).to.equal(200)
@@ -245,8 +285,9 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle.default('/')
-        .use(server(createServer(app)))
+      return makeFetcher(app).fetch('/', {
+        method: 'GET'
+      })
         .then(function (res) {
           expect(res.body).to.equal('success')
           expect(res.status).to.equal(200)
@@ -270,8 +311,9 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle.default('/?foo[]=a&foo[1]=b&foo[22]=c')
-        .use(server(createServer(app)))
+      return makeFetcher(app).fetch('/?foo[]=a&foo[1]=b&foo[22]=c', {
+        method: 'GET'
+      })
         .then(function (res) {
           expect(res.body).to.equal('success')
           expect(res.status).to.equal(200)
@@ -294,8 +336,9 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle.default('/?foo=["a","b","c"]')
-        .use(server(createServer(app)))
+      return makeFetcher(app).fetch('/?foo=["a","b","c"]', {
+        method: 'GET'
+      })
         .then(function (res) {
           expect(res.body).to.equal('success')
           expect(res.status).to.equal(200)
@@ -318,8 +361,9 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle.default('/?foo[bar]=test')
-        .use(server(createServer(app)))
+      return makeFetcher(app).fetch('/?foo[bar]=test', {
+        method: 'GET'
+      })
         .then(function (res) {
           expect(res.body).to.equal('success')
           expect(res.status).to.equal(200)
@@ -344,8 +388,9 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle.default('/')
-        .use(server(createServer(app)))
+      return makeFetcher(app).fetch('/', {
+        method: 'GET'
+      })
         .then(function (res) {
           expect(res.body).to.equal('success')
           expect(res.status).to.equal(200)
@@ -370,17 +415,15 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json; charset=utf-8'
           },
-          body: {
+          body: JSON.stringify({
             foo: 'bar'
-          }
+          })
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('success')
             expect(res.status).to.equal(200)
@@ -424,12 +467,13 @@ describe('osprey method handler', function () {
           return next(err)
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
-          body: {}
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: '{}'
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
           })
@@ -462,17 +506,15 @@ describe('osprey method handler', function () {
           return next(err)
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json; charset=utf-8'
           },
-          body: {
+          body: JSON.stringify({
             foo: 'bar'
-          }
+          })
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
           })
@@ -505,18 +547,16 @@ describe('osprey method handler', function () {
           return next(err)
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json; charset=utf-8'
           },
-          body: {
+          body: JSON.stringify({
             foo: 'bar',
             baz: 'qux'
-          }
+          })
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
           })
@@ -548,18 +588,16 @@ describe('osprey method handler', function () {
           return next(err)
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json; charset=utf-8'
           },
-          body: {
+          body: JSON.stringify({
             foo: 'bar',
             baz: 'qux'
-          }
+          })
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
           })
@@ -582,17 +620,15 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json; charset=utf-8'
           },
-          body: {
+          body: JSON.stringify({
             foo: 'bar'
-          }
+          })
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('success')
             expect(res.status).to.equal(200)
@@ -615,15 +651,13 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json; charset=utf-8'
           },
-          body: [ 'a', 'b', 'c' ]
+          body: JSON.stringify([ 'a', 'b', 'c' ])
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('success')
             expect(res.status).to.equal(200)
@@ -643,17 +677,15 @@ describe('osprey method handler', function () {
           res.end('failure')
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json; charset=utf-8'
           },
-          body: {
+          body: JSON.stringify({
             foo: 'bar'
-          }
+          })
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
           })
@@ -674,15 +706,13 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json; charset=utf-8'
           },
           body: '"test"'
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('success')
             expect(res.status).to.equal(200)
@@ -701,17 +731,15 @@ describe('osprey method handler', function () {
           res.send('failure')
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json; charset=utf-8'
           },
-          body: {
+          body: JSON.stringify({
             foo: 'bar'
-          }
+          })
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
           })
@@ -733,17 +761,15 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json; charset=utf-8'
           },
-          body: {
+          body: JSON.stringify({
             foo: 'bar'
-          }
+          })
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('success')
             expect(res.status).to.equal(200)
@@ -763,15 +789,13 @@ describe('osprey method handler', function () {
           res.send('failure')
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json; charset=utf-8'
           },
           body: '"foo"'
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
           })
@@ -808,12 +832,13 @@ describe('osprey method handler', function () {
           return next(err)
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
-          body: {}
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: '{}'
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
           })
@@ -830,15 +855,13 @@ describe('osprey method handler', function () {
           }
         }))
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           body: 'foobar',
           headers: {
             'Content-Type': 'application/json'
           }
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
           })
@@ -860,12 +883,13 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
-          body: [true, false]
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify([true, false])
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('success')
             expect(res.status).to.equal(200)
@@ -893,15 +917,13 @@ describe('osprey method handler', function () {
           }
         }))
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           body: '{"url":"http://example.com"}',
           headers: {
             'Content-Type': 'application/json'
           }
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
           })
@@ -944,15 +966,13 @@ describe('osprey method handler', function () {
         { ajv }
         ))
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           body: '{"url":"http://example.com"}',
           headers: {
             'Content-Type': 'application/json'
           }
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
             sinon.assert.calledWith(compile, schema)
@@ -1024,10 +1044,12 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
-          body: [{
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify([{
             id: 123,
             name: 'Product',
             price: 12.34,
@@ -1036,9 +1058,8 @@ describe('osprey method handler', function () {
               latitude: 123,
               longitude: 456
             }
-          }]
+          }])
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(200)
           })
@@ -1122,10 +1143,9 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
-          body: [{
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          body: JSON.stringify([{
             id: 123,
             name: 'Product',
             price: 12.34,
@@ -1134,9 +1154,9 @@ describe('osprey method handler', function () {
               latitude: 123,
               longitude: 456
             }
-          }]
+          }]),
+          headers: { 'Content-Type': 'application/json' }
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(200)
             sinon.assert.calledOnce(addSchema)
@@ -1211,9 +1231,8 @@ describe('osprey method handler', function () {
             return next(err)
           })
 
-          return popsicle.default({
-            url: '/',
-            method: 'post',
+          return makeFetcher(app).fetch('/', {
+            method: 'POST',
             body: [
               '<?xml version="1.0"?>',
               '<comment>',
@@ -1225,7 +1244,6 @@ describe('osprey method handler', function () {
               'Content-Type': 'text/xml'
             }
           })
-            .use(server(createServer(app)))
             .then(function (res) {
               expect(res.status).to.equal(400)
             })
@@ -1242,15 +1260,13 @@ describe('osprey method handler', function () {
             }
           }))
 
-          return popsicle.default({
-            url: '/',
-            method: 'post',
+          return makeFetcher(app).fetch('/', {
+            method: 'POST',
             body: 'foobar',
             headers: {
               'Content-Type': 'text/xml'
             }
           })
-            .use(server(createServer(app)))
             .then(function (res) {
               expect(res.status).to.equal(400)
             })
@@ -1272,9 +1288,8 @@ describe('osprey method handler', function () {
             res.end('success')
           })
 
-          return popsicle.default({
-            url: '/',
-            method: 'post',
+          return makeFetcher(app).fetch('/', {
+            method: 'POST',
             body: [
               '<?xml version="1.0"?>',
               '<comment>',
@@ -1286,7 +1301,6 @@ describe('osprey method handler', function () {
               'Content-Type': 'text/xml'
             }
           })
-            .use(server(createServer(app)))
             .then(function (res) {
               expect(res.body).to.equal('success')
               expect(res.status).to.equal(200)
@@ -1327,15 +1341,13 @@ describe('osprey method handler', function () {
           return next(err)
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           body: 'a=true&a=123',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
           }
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
           })
@@ -1361,15 +1373,13 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           body: 'a=true&a=123',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
           }
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('success')
             expect(res.status).to.equal(200)
@@ -1396,15 +1406,13 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           body: 'a=[true,true]',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
           }
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('success')
             expect(res.status).to.equal(200)
@@ -1449,14 +1457,14 @@ describe('osprey method handler', function () {
           return next(err)
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
-          body: popsicle.form({
-            username: '123'
-          })
+        var form = new FormData()
+        form.append('username', '123')
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: form.getHeaders(),
+          body: form
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
           })
@@ -1487,14 +1495,14 @@ describe('osprey method handler', function () {
           req.pipe(req.form)
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
-          body: popsicle.form({
-            username: 'blakeembrey'
-          })
+        var form = new FormData()
+        form.append('username', 'blakeembrey')
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: form.getHeaders(),
+          body: form
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('success')
             expect(res.status).to.equal(200)
@@ -1525,14 +1533,14 @@ describe('osprey method handler', function () {
           req.pipe(req.form)
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
-          body: popsicle.form({
-            number: '12345'
-          })
+        var form = new FormData()
+        form.append('number', '12345')
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: form.getHeaders(),
+          body: form
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('success')
             expect(res.status).to.equal(200)
@@ -1558,17 +1566,15 @@ describe('osprey method handler', function () {
           req.pipe(req.form)
         })
 
-        var form = popsicle.form()
-
+        var form = new FormData()
         form.append('item', 'abc')
         form.append('item', '123')
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: form.getHeaders(),
           body: form
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
           })
@@ -1597,16 +1603,14 @@ describe('osprey method handler', function () {
           req.pipe(req.form)
         })
 
-        var form = popsicle.form()
-
+        var form = new FormData()
         form.append('more', '123')
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: form.getHeaders(),
           body: form
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(400)
           })
@@ -1652,15 +1656,15 @@ describe('osprey method handler', function () {
           req.pipe(req.form)
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
-          body: popsicle.form({
-            contents: fs.createReadStream(join(__dirname, '..', 'LICENSE')),
-            filename: 'LICENSE'
-          })
+        var form = new FormData()
+        form.append('contents', fs.createReadStream(join(__dirname, '..', 'LICENSE')))
+        form.append('filename', 'LICENSE')
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: form.getHeaders(),
+          body: form
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('success')
             expect(res.status).to.equal(200)
@@ -1706,16 +1710,16 @@ describe('osprey method handler', function () {
           req.pipe(req.form)
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
-          body: popsicle.form({
-            file: fs.createReadStream(join(__dirname, '..', 'LICENSE')),
-            another: fs.createReadStream(join(__dirname, '..', 'README.md')),
-            random: 'hello world'
-          })
+        var form = new FormData()
+        form.append('file', fs.createReadStream(join(__dirname, '..', 'LICENSE')))
+        form.append('another', fs.createReadStream(join(__dirname, '..', 'README.md')))
+        form.append('random', 'hello world')
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: form.getHeaders(),
+          body: form
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('success')
             expect(res.status).to.equal(200)
@@ -1735,15 +1739,13 @@ describe('osprey method handler', function () {
           }
         }))
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           body: 'test',
           headers: {
             'Content-Type': 'text/html'
           }
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.status).to.equal(415)
           })
@@ -1760,15 +1762,13 @@ describe('osprey method handler', function () {
           res.end('success')
         })
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
           body: 'test',
           headers: {
             'Content-Type': 'text/html'
           }
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('success')
             expect(res.status).to.equal(200)
@@ -1814,17 +1814,15 @@ describe('osprey method handler', function () {
           req.pipe(req.form)
         })
 
-        var form = popsicle.form()
-
+        var form = new FormData()
         form.append('items', 'true')
         form.append('items', 'false')
 
-        return popsicle.default({
-          url: '/',
-          method: 'post',
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: form.getHeaders(),
           body: form
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('success')
             expect(res.status).to.equal(200)
@@ -1840,14 +1838,14 @@ describe('osprey method handler', function () {
           return req._readableState.ended ? res.end() : req.pipe(res)
         })
 
-        return popsicle.default({
-          url: '/',
-          body: popsicle.form({
-            file: fs.createReadStream(join(__dirname, 'index.js'))
-          }),
-          method: 'post'
+        var form = new FormData()
+        form.append('file', fs.createReadStream(join(__dirname, 'index.js')))
+
+        return makeFetcher(app).fetch('/', {
+          body: form,
+          headers: form.getHeaders(),
+          method: 'POST'
         })
-          .use(server(createServer(app)))
           .then(function (res) {
             expect(res.body).to.equal('')
             expect(res.status).to.equal(200)
@@ -1866,12 +1864,10 @@ describe('osprey method handler', function () {
         }
       )
 
-      return popsicle.default({
-        url: '/',
+      return makeFetcher(app).fetch('/', {
         body: 'test',
-        method: 'post'
+        method: 'POST'
       })
-        .use(server(createServer(app)))
         .then(function (res) {
           expect(res.body).to.equal('test')
           expect(res.status).to.equal(200)
@@ -1891,14 +1887,14 @@ describe('osprey method handler', function () {
         return req.pipe(res)
       })
 
-      return popsicle.default({
-        url: '/',
-        body: popsicle.form({
-          file: fs.createReadStream(join(__dirname, 'index.js'))
-        }),
-        method: 'post'
+      var form = new FormData()
+      form.append('file', fs.createReadStream(join(__dirname, 'index.js')))
+
+      return makeFetcher(app).fetch('/', {
+        body: form,
+        headers: form.getHeaders(),
+        method: 'POST'
       })
-        .use(server(createServer(app)))
         .then(function (res) {
           expect(typeof res.body).to.equal('string')
           expect(res.status).to.equal(200)
@@ -1920,13 +1916,12 @@ describe('osprey method handler', function () {
         }
       }))
 
-      return popsicle.default({
-        url: '/',
+      return makeFetcher(app).fetch('/', {
+        method: 'GET',
         headers: {
           'Accept': 'application/json'
         }
       })
-        .use(server(createServer(app)))
         .then(function (res) {
           expect(res.status).to.equal(406)
         })
@@ -1949,13 +1944,12 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle.default({
-        url: '/',
+      return makeFetcher(app).fetch('/', {
+        method: 'GET',
         headers: {
           'Accept': 'application/json, text/html'
         }
       })
-        .use(server(createServer(app)))
         .then(function (res) {
           expect(res.body).to.equal('success')
           expect(res.status).to.equal(200)
@@ -1977,13 +1971,12 @@ describe('osprey method handler', function () {
         res.end('success')
       })
 
-      return popsicle.default({
-        url: '/',
+      return makeFetcher(app).fetch('/', {
+        method: 'GET',
         headers: {
           'Accept': 'foo/bar'
         }
       })
-        .use(server(createServer(app)))
         .then(function (res) {
           expect(res.body).to.equal('success')
           expect(res.status).to.equal(200)
@@ -1991,12 +1984,6 @@ describe('osprey method handler', function () {
     })
   })
 })
-
-function createServer (router) {
-  return function (req, res) {
-    router(req, res, finalhandler(req, res))
-  }
-}
 
 /**
  * Check for module existence.
