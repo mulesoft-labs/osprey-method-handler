@@ -411,7 +411,7 @@ function jsonBodyHandler (body, path, method, options) {
   if (!additionalProperties) {
     middleware.push(function (req, res, next) {
       var additionalPropertyFound = Object.keys(req.body).some(function (key) {
-        return !schema.hasOwnProperty(key)
+        return !Object.prototype.hasOwnProperty.call(schema, key)
       })
       if (additionalPropertyFound) {
         return next(createValidationError(formatRamlErrors([{
@@ -675,7 +675,7 @@ function formDataBodyHandler (body, path, method, options) {
         }
 
         if (type === 'field' || type === 'file') {
-          if (!params.hasOwnProperty(name)) {
+          if (!Object.prototype.hasOwnProperty.call(params, name)) {
             return close()
           }
 

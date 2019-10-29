@@ -436,7 +436,7 @@ describe('osprey method handler', function () {
         foo: {
           name: 'foo',
           displayName: 'foo',
-          type: [ 'string' ],
+          type: ['string'],
           required: true
         }
       }
@@ -641,12 +641,12 @@ describe('osprey method handler', function () {
         app.post('/', handler({
           body: {
             'application/json': {
-              type: [ 'array' ],
+              type: ['array'],
               items: 'string'
             }
           }
         }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
-          expect(req.body).to.deep.equal([ 'a', 'b', 'c' ])
+          expect(req.body).to.deep.equal(['a', 'b', 'c'])
 
           res.end('success')
         })
@@ -656,7 +656,7 @@ describe('osprey method handler', function () {
           headers: {
             'Content-Type': 'application/json; charset=utf-8'
           },
-          body: JSON.stringify([ 'a', 'b', 'c' ])
+          body: JSON.stringify(['a', 'b', 'c'])
         })
           .then(function (res) {
             expect(res.body).to.equal('success')
@@ -669,7 +669,7 @@ describe('osprey method handler', function () {
         app.post('/', handler({
           body: {
             'application/json': {
-              type: [ 'array' ],
+              type: ['array'],
               items: 'string'
             }
           }
@@ -697,7 +697,7 @@ describe('osprey method handler', function () {
         app.post('/', handler({
           body: {
             'application/json': {
-              type: [ 'string' ]
+              type: ['string']
             }
           }
         }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
@@ -724,7 +724,7 @@ describe('osprey method handler', function () {
         app.post('/', handler({
           body: {
             'application/json': {
-              type: [ 'string' ]
+              type: ['string']
             }
           }
         }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
@@ -751,7 +751,7 @@ describe('osprey method handler', function () {
         app.post('/', handler({
           body: {
             'application/json': {
-              type: [ 'object' ],
+              type: ['object'],
               properties: {}
             }
           }
@@ -781,7 +781,7 @@ describe('osprey method handler', function () {
         app.post('/', handler({
           body: {
             'application/json': {
-              type: [ 'object' ],
+              type: ['object'],
               properties: {}
             }
           }
@@ -1908,7 +1908,7 @@ describe('osprey method handler', function () {
 
       app.get('/', handler({
         responses: {
-          '200': {
+          200: {
             body: {
               'text/html': null
             }
@@ -1919,7 +1919,7 @@ describe('osprey method handler', function () {
       return makeFetcher(app).fetch('/', {
         method: 'GET',
         headers: {
-          'Accept': 'application/json'
+          Accept: 'application/json'
         }
       })
         .then(function (res) {
@@ -1932,7 +1932,7 @@ describe('osprey method handler', function () {
 
       app.get('/', handler({
         responses: {
-          '200': {
+          200: {
             body: {
               'text/html': null
             }
@@ -1947,7 +1947,7 @@ describe('osprey method handler', function () {
       return makeFetcher(app).fetch('/', {
         method: 'GET',
         headers: {
-          'Accept': 'application/json, text/html'
+          Accept: 'application/json, text/html'
         }
       })
         .then(function (res) {
@@ -1961,7 +1961,7 @@ describe('osprey method handler', function () {
 
       app.get('/', handler({
         responses: {
-          '200': {
+          200: {
             body: {}
           }
         }
@@ -1974,7 +1974,7 @@ describe('osprey method handler', function () {
       return makeFetcher(app).fetch('/', {
         method: 'GET',
         headers: {
-          'Accept': 'foo/bar'
+          Accept: 'foo/bar'
         }
       })
         .then(function (res) {
