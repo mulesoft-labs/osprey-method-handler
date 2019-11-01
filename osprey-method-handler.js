@@ -91,14 +91,14 @@ function addJsonSchema (schema, key, options) {
 /**
  * Create a middleware request/response handler.
  *
- * @param  {Object}   schema
+ * @param  {webapi-parser.Operation} method
  * @param  {String}   path
- * @param  {String}   method
  * @param  {Object}   options
  * @return {Function}
  */
-function ospreyMethodHandler (schema, path, method, options) {
-  schema = schema || {}
+function ospreyMethodHandler (method, path, options) {
+// function ospreyMethodHandler (schema, path, methodName, options) {
+  const methodName = method.method.value()
   options = options || {}
 
   const middleware = []
@@ -110,16 +110,16 @@ function ospreyMethodHandler (schema, path, method, options) {
   })
 
   // Headers *always* have a default handler.
-  middleware.push(headerHandler(schema.headers, options))
+  middleware.push(headerHandler(method.headers, options))
 
-  if (schema.body) {
-    middleware.push(bodyHandler(schema.body, path, method, options))
+  if (method.body) {
+    middleware.push(bodyHandler(method.body, path, methodName, options))
   } else {
     if (options.discardUnknownBodies !== false) {
       debug(
         '%s %s: Discarding body request stream: ' +
         'Use "*/*" or set "body" to accept content types',
-        method,
+        methodName,
         path
       )
 
@@ -127,18 +127,18 @@ function ospreyMethodHandler (schema, path, method, options) {
     }
   }
 
-  if (schema.responses) {
-    middleware.push(acceptsHandler(schema.responses, path, method, options))
+  if (method.responses) {
+    middleware.push(acceptsHandler(method.responses, path, methodName, options))
   }
 
-  if (schema.queryParameters) {
-    middleware.push(queryHandler(schema.queryParameters, options))
+  if (method.queryParameters) {
+    middleware.push(queryHandler(method.queryParameters, options))
   } else {
     if (options.discardUnknownQueryParameters !== false) {
       debug(
         '%s %s: Discarding all query parameters: ' +
         'Define "queryParameters" to receive parameters',
-        method,
+        methodName,
         path
       )
 
@@ -153,10 +153,10 @@ function ospreyMethodHandler (schema, path, method, options) {
  *
  * @param  {Object}   responses
  * @param  {String}   path
- * @param  {String}   method
+ * @param  {String}   methodName
  * @return {Function}
  */
-function acceptsHandler (responses, path, method) {
+function acceptsHandler (responses, path, methodName) {
   const accepts = {}
 
   // Collect all valid response types.
@@ -177,7 +177,7 @@ function acceptsHandler (responses, path, method) {
 
   // The user will accept anything when there are no types defined.
   if (!mediaTypes.length) {
-    debug('%s %s: No accepts media types defined', method, path)
+    debug('%s %s: No accepts media types defined', methodName, path)
 
     return []
   }
@@ -273,11 +273,11 @@ function headerHandler (headerParameters, options) {
  *
  * @param  {Object}   bodies
  * @param  {String}   path
- * @param  {String}   method
+ * @param  {String}   methodName
  * @param  {Object}   options
  * @return {Function}
  */
-function bodyHandler (bodies, path, method, options) {
+function bodyHandler (bodies, path, methodName, options) {
   const bodyMap = {}
   const types = Object.keys(bodies)
 
@@ -296,7 +296,7 @@ function bodyHandler (bodies, path, method, options) {
       const properType = handler[0]
       const fn = handler[1]
 
-      bodyMap[properType] = fn(bodies[type], path, method, options)
+      bodyMap[properType] = fn(bodies[type], path, methodName, options)
     })
   })
   const validTypes = types.map(JSON.stringify).join(', ')
