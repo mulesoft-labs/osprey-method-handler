@@ -3,7 +3,7 @@
 
 const expect = require('chai').expect
 const sinon = require('sinon')
-const router = require('osprey-router')
+const ospreyRouter = require('osprey-router')
 const fs = require('fs')
 const join = require('path').join
 const streamEqual = require('stream-equal')
@@ -63,7 +63,7 @@ describe('osprey method handler', function () {
 
   describe('headers', function () {
     it('should reject invalid headers using standard error format', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.get('/', ospreyMethodHandler({
         headers: {
@@ -101,7 +101,7 @@ describe('osprey method handler', function () {
     })
 
     it('should sanitize RAML 0.8 headers', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.get('/', ospreyMethodHandler({
         headers: {
@@ -127,7 +127,7 @@ describe('osprey method handler', function () {
     })
 
     it('should sanitize RAML 1.0 headers', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.get('/', ospreyMethodHandler({
         headers: {
@@ -156,7 +156,7 @@ describe('osprey method handler', function () {
 
   describe('query parameters', function () {
     it('should reject invalid query parameters using standard error format', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.get('/', ospreyMethodHandler({
         queryParameters: {
@@ -194,7 +194,7 @@ describe('osprey method handler', function () {
     })
 
     it('should filter undefined query parameters', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.get('/', ospreyMethodHandler({
         queryParameters: {
@@ -219,7 +219,7 @@ describe('osprey method handler', function () {
     })
 
     it('should remove all unknown query parameters', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.get('/', ospreyMethodHandler({
         queryParameters: {
@@ -245,7 +245,7 @@ describe('osprey method handler', function () {
     })
 
     it('should not filter undefined query parameters when discardUnknownQueryParameters is false', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.get('/', ospreyMethodHandler({
         queryParameters: {
@@ -270,7 +270,7 @@ describe('osprey method handler', function () {
     })
 
     it('should support empty query strings', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.get('/', ospreyMethodHandler({
         queryParameters: {
@@ -296,7 +296,7 @@ describe('osprey method handler', function () {
     })
 
     it('should parse requests using array query syntax (RAML 0.8)', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.get('/', ospreyMethodHandler({
         queryParameters: {
@@ -322,7 +322,7 @@ describe('osprey method handler', function () {
     })
 
     it('should parse requests using array query syntax (RAML 1.0)', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.get('/', ospreyMethodHandler({
         queryParameters: {
@@ -347,7 +347,7 @@ describe('osprey method handler', function () {
     })
 
     it('should unescape querystring keys', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.get('/', ospreyMethodHandler({
         queryParameters: {
@@ -372,7 +372,7 @@ describe('osprey method handler', function () {
     })
 
     it('should support unused repeat parameters (mulesoft/osprey#84)', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.get('/', ospreyMethodHandler({
         queryParameters: {
@@ -402,7 +402,7 @@ describe('osprey method handler', function () {
   describe('body', function () {
     describe('general', function () {
       it('should parse content-type from header and validate', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -443,7 +443,7 @@ describe('osprey method handler', function () {
       }
 
       it('should reject invalid RAML datatype with standard error format', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -481,7 +481,7 @@ describe('osprey method handler', function () {
       })
 
       it('should reject properties < minProperties', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -522,7 +522,7 @@ describe('osprey method handler', function () {
       })
 
       it('should reject properties > maxProperties', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -563,7 +563,7 @@ describe('osprey method handler', function () {
           })
       })
       it('should reject additional properties when additionalProperties is false', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -604,7 +604,7 @@ describe('osprey method handler', function () {
           })
       })
       it('should accept valid RAML datatype', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -637,7 +637,7 @@ describe('osprey method handler', function () {
       })
 
       it('should accept arrays as root elements', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -665,7 +665,7 @@ describe('osprey method handler', function () {
           })
       })
       it('should reject objects when an array is set as root element', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -693,7 +693,7 @@ describe('osprey method handler', function () {
       })
 
       it('should accept strings as root elements', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -720,7 +720,7 @@ describe('osprey method handler', function () {
           })
       })
       it('should reject objects when a string is set as root element', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -747,7 +747,7 @@ describe('osprey method handler', function () {
       })
 
       it('should accept objects with empty properties', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -777,7 +777,7 @@ describe('osprey method handler', function () {
           })
       })
       it('should reject invalid objects', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -807,7 +807,7 @@ describe('osprey method handler', function () {
       const JSON_SCHEMA = '{"properties":{"x":{"type":"string"}},"required":["x"]}'
 
       it('should reject invalid json with standard error format', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -846,7 +846,7 @@ describe('osprey method handler', function () {
       })
 
       it('should reject invalid request bodies', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -869,7 +869,7 @@ describe('osprey method handler', function () {
       })
 
       it('should parse valid json', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -898,7 +898,7 @@ describe('osprey method handler', function () {
       })
 
       it('should validate using draft 03', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -953,7 +953,7 @@ describe('osprey method handler', function () {
             'name'
           ]
         }
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -1027,7 +1027,7 @@ describe('osprey method handler', function () {
           }
         })
 
-        const app = router()
+        const app = ospreyRouter()
 
         // Register GeoJSON schema.
         ospreyMethodHandler.addJsonSchema(
@@ -1124,7 +1124,7 @@ describe('osprey method handler', function () {
           }
         })
 
-        const app = router()
+        const app = ospreyRouter()
 
         // Register GeoJSON schema.
         ospreyMethodHandler.addJsonSchema(
@@ -1203,7 +1203,7 @@ describe('osprey method handler', function () {
         })
 
         it('should reject invalid xml bodies with standard error format', function () {
-          const app = router()
+          const app = ospreyRouter()
 
           app.post('/', ospreyMethodHandler({
             body: {
@@ -1251,7 +1251,7 @@ describe('osprey method handler', function () {
         })
 
         it('should reject invalid request bodies', function () {
-          const app = router()
+          const app = ospreyRouter()
 
           app.post('/', ospreyMethodHandler({
             body: {
@@ -1274,7 +1274,7 @@ describe('osprey method handler', function () {
         })
 
         it('should parse valid xml documents', function () {
-          const app = router()
+          const app = ospreyRouter()
 
           app.post('/', ospreyMethodHandler({
             body: {
@@ -1312,7 +1312,7 @@ describe('osprey method handler', function () {
 
     describe('urlencoded', function () {
       it('should reject invalid forms with standard error format', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -1355,7 +1355,7 @@ describe('osprey method handler', function () {
       })
 
       it('should parse valid forms (RAML 0.8)', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -1388,7 +1388,7 @@ describe('osprey method handler', function () {
       })
 
       it('should parse valid forms (RAML 1.0)', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -1423,7 +1423,7 @@ describe('osprey method handler', function () {
 
     describe('form data', function () {
       it('should reject invalid forms using standard error format', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -1472,7 +1472,7 @@ describe('osprey method handler', function () {
       })
 
       it('should parse valid forms', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -1511,7 +1511,7 @@ describe('osprey method handler', function () {
       })
 
       it('should properly sanitize form values', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -1549,7 +1549,7 @@ describe('osprey method handler', function () {
       })
 
       it('should error with repeated values', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -1582,7 +1582,7 @@ describe('osprey method handler', function () {
       })
 
       it('should error if it did not receive all required values', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -1618,7 +1618,7 @@ describe('osprey method handler', function () {
       })
 
       it('should allow files', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -1673,7 +1673,7 @@ describe('osprey method handler', function () {
       })
 
       it('should ignore unknown files and fields (RAML 0.8)', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -1730,7 +1730,7 @@ describe('osprey method handler', function () {
 
     describe('unknown', function () {
       it('should reject unknown request types', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -1753,7 +1753,7 @@ describe('osprey method handler', function () {
       })
 
       it('should pass unknown bodies through when defined', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -1779,7 +1779,7 @@ describe('osprey method handler', function () {
 
     describe('multiple', function () {
       it('should parse as the correct content type', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({
           body: {
@@ -1833,7 +1833,7 @@ describe('osprey method handler', function () {
 
     describe('empty', function () {
       it('should discard empty request bodies', function () {
-        const app = router()
+        const app = ospreyRouter()
 
         app.post('/', ospreyMethodHandler({}), function (req, res) {
           return req._readableState.ended ? res.end() : req.pipe(res)
@@ -1855,7 +1855,7 @@ describe('osprey method handler', function () {
     })
 
     it('should disable discard empty request', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.post(
         '/',
@@ -1878,7 +1878,7 @@ describe('osprey method handler', function () {
 
   describe('wildcard', function () {
     it('should accept any body', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.post('/', ospreyMethodHandler({
         body: {
@@ -1905,7 +1905,7 @@ describe('osprey method handler', function () {
 
   describe('accept', function () {
     it('should reject requests with invalid accept headers', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.get('/', ospreyMethodHandler({
         responses: {
@@ -1929,7 +1929,7 @@ describe('osprey method handler', function () {
     })
 
     it('should accept requests with valid accept headers', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.get('/', ospreyMethodHandler({
         responses: {
@@ -1958,7 +1958,7 @@ describe('osprey method handler', function () {
     })
 
     it('should accept anything without response types', function () {
-      const app = router()
+      const app = ospreyRouter()
 
       app.get('/', ospreyMethodHandler({
         responses: {
