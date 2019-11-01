@@ -104,14 +104,13 @@ function ospreyMethodHandler (schema, path, method, options) {
   const middleware = []
 
   // Attach the resource path to every validation handler.
-  middleware.push(function (req, res, next) {
+  middleware.push(function resourcePathAttacher (req, res, next) {
     req.resourcePath = path
-
     return next()
   })
 
   // Headers *always* have a default handler.
-  middleware.push(headerHandler(schema.headers, path, method, options))
+  middleware.push(headerHandler(schema.headers, options))
 
   if (schema.body) {
     middleware.push(bodyHandler(schema.body, path, method, options))
@@ -133,7 +132,7 @@ function ospreyMethodHandler (schema, path, method, options) {
   }
 
   if (schema.queryParameters) {
-    middleware.push(queryHandler(schema.queryParameters, path, method, options))
+    middleware.push(queryHandler(schema.queryParameters, options))
   } else {
     if (options.discardUnknownQueryParameters !== false) {
       debug(
@@ -146,7 +145,6 @@ function ospreyMethodHandler (schema, path, method, options) {
       middleware.push(ospreyFastQuery)
     }
   }
-
   return compose(middleware)
 }
 
@@ -204,12 +202,10 @@ function acceptsHandler (responses, path, method) {
  * Create query string handling middleware.
  *
  * @param  {Object}   queryParameters
- * @param  {String}   path
- * @param  {String}   method
  * @param  {Object}   options
  * @return {Function}
  */
-function queryHandler (queryParameters, path, method, options) {
+function queryHandler (queryParameters, options) {
   const sanitize = ramlSanitize(queryParameters)
   const validate = ramlValidate(queryParameters, options.RAMLVersion)
 
@@ -250,12 +246,10 @@ function parseQuerystring (query) {
  * Create a request header handling middleware.
  *
  * @param  {Object}   headerParameters
- * @param  {String}   path
- * @param  {String}   method
  * @param  {Object}   options
  * @return {Function}
  */
-function headerHandler (headerParameters, path, method, options) {
+function headerHandler (headerParameters, options) {
   const headers = extend(DEFAULT_REQUEST_HEADER_PARAMS, lowercaseKeys(headerParameters || {}))
   const sanitize = ramlSanitize(headers)
   const validate = ramlValidate(headers, options.RAMLVersion)
@@ -270,7 +264,6 @@ function headerHandler (headerParameters, path, method, options) {
 
     // Unsets invalid headers. Does not touch `rawHeaders`.
     req.headers = options.discardUnknownHeaders === false ? extend(req.headers, headers) : headers
-
     return next()
   }
 }
@@ -293,7 +286,6 @@ function bodyHandler (bodies, path, method, options) {
       .filter(function (handler) {
         return is.is(handler[0], type)
       })
-
     // Do not parse on wildcards.
     if (handlers.length > 1 && !options.parseBodiesOnWildcard) {
       return
@@ -307,7 +299,6 @@ function bodyHandler (bodies, path, method, options) {
       bodyMap[properType] = fn(bodies[type], path, method, options)
     })
   })
-
   const validTypes = types.map(JSON.stringify).join(', ')
   const expectedMessage = types.length === 1 ? validTypes : 'one of ' + validTypes
 
