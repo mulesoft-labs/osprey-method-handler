@@ -13,6 +13,7 @@ const standardHeaders = require('standard-headers')
 const compose = require('compose-middleware').compose
 const Ajv = require('ajv')
 const debug = require('debug')('osprey-method-handler')
+const wp = require('webapi-parser')
 
 const ajv = Ajv({
   schemaId: 'auto',
@@ -30,6 +31,16 @@ ajv.addMetaSchema(require('ajv/lib/refs/json-schema-draft-04.json'))
  */
 const JSON_SCHEMA_03 = /^http:\/\/json-schema\.org\/draft-03\/(?:hyper-)?schema/i
 
+const DEFAULT_OPTIONS =  {
+  discardUnknownBodies: true,
+  discardUnknownQueryParameters: true,
+  discardUnknownHeaders: true,
+  parseBodiesOnWildcard: false,
+  limit: '100kb',
+  parameterLimit: 1000,
+  RAMLVersion: 'RAML08'
+}
+
 /**
  * Get all default headers.
  *
@@ -39,10 +50,13 @@ const DEFAULT_REQUEST_HEADER_PARAMS = {}
 
 // Fill header params with non-required parameters.
 standardHeaders.request.forEach(function (header) {
-  DEFAULT_REQUEST_HEADER_PARAMS[header] = {
-    type: 'string',
-    required: false
-  }
+  DEFAULT_REQUEST_HEADER_PARAMS[header] = new wp.model.domain.Parameter()
+    .withName(header)
+    .withRequired(false)
+    .withSchema(
+      new wp.model.domain.ScalarShape()
+        .withName('schema')
+        .withDataType('http://www.w3.org/2001/XMLSchema#string'))
 })
 
 /**
@@ -99,7 +113,7 @@ function addJsonSchema (schema, key, options) {
 function ospreyMethodHandler (method, path, options) {
 // function ospreyMethodHandler (schema, path, methodName, options) {
   const methodName = method.method.value()
-  options = options || {}
+  options = extend(DEFAULT_OPTIONS, options)
 
   const middleware = []
 
@@ -110,19 +124,19 @@ function ospreyMethodHandler (method, path, options) {
   })
 
   // Headers *always* have a default handler.
-  middleware.push(headerHandler(method.headers, options))
+  middleware.push(headerHandler(method.request.headers, options))
 
-  if (method.body) {
-    middleware.push(bodyHandler(method.body, path, methodName, options))
+  if (method.request.payloads.length > 0) {
+    // 3 DIVED HERE >>v
+    middleware.push(bodyHandler(method.request.payloads, path, methodName, options))
   } else {
-    if (options.discardUnknownBodies !== false) {
+    if (options.discardUnknownBodies) {
       debug(
         '%s %s: Discarding body request stream: ' +
         'Use "*/*" or set "body" to accept content types',
         methodName,
         path
       )
-
       middleware.push(discardBody)
     }
   }
@@ -134,7 +148,7 @@ function ospreyMethodHandler (method, path, options) {
   if (method.queryParameters) {
     middleware.push(queryHandler(method.queryParameters, options))
   } else {
-    if (options.discardUnknownQueryParameters !== false) {
+    if (options.discardUnknownQueryParameters) {
       debug(
         '%s %s: Discarding all query parameters: ' +
         'Define "queryParameters" to receive parameters',
@@ -220,7 +234,7 @@ function queryHandler (queryParameters, options) {
 
     const qs = querystring.stringify(query)
 
-    if (options.discardUnknownQueryParameters !== false) {
+    if (options.discardUnknownQueryParameters) {
       req.url = reqUrl.pathname + (qs ? '?' + qs : '')
       req.query = query
     } else {
@@ -245,25 +259,38 @@ function parseQuerystring (query) {
 /**
  * Create a request header handling middleware.
  *
- * @param  {Object}   headerParameters
+ * @param  {Array<webapi-parser.Parameter>}   headers
  * @param  {Object}   options
  * @return {Function}
  */
-function headerHandler (headerParameters, options) {
-  const headers = extend(DEFAULT_REQUEST_HEADER_PARAMS, lowercaseKeys(headerParameters || {}))
-  const sanitize = ramlSanitize(headers)
-  const validate = ramlValidate(headers, options.RAMLVersion)
+function headerHandler (headers = [], options) {
+  const schemas = {}
+  headers.map(header => {
+    header.withName(header.name.value().toLowerCase())
+    schemas[header.name.value()] = header
+  })
+  schemas = extend(DEFAULT_REQUEST_HEADER_PARAMS, schemas)
 
-  return function ospreyMethodHeader (req, res, next) {
-    const headers = sanitize(lowercaseKeys(req.headers || {}))
-    const result = validate(headers)
+  // Unsets invalid headers. Does not touch `rawHeaders`.
+  if (options.discardUnknownHeaders) {
+    const definedHeaders = Object.entries(req.headers)
+      .filter(([name, val]) => !!schemas[name])
+    req.headers = Object.fromEntries(definedHeaders)
+  }
 
-    if (!result.valid) {
-      return next(createValidationError(formatRamlErrors(result.errors, 'header')))
-    }
-
-    // Unsets invalid headers. Does not touch `rawHeaders`.
-    req.headers = options.discardUnknownHeaders === false ? extend(req.headers, headers) : headers
+  return async function ospreyMethodHeader (req, res, next) {
+    const reports = await Promise.all(
+      Object.entries(req.headers || {}).map(([name, value]) => {
+        const schema = schemas[name]
+        return schema ? schema.validate(value) : Promise.resolve()
+      })
+    )
+    reports.forEach(report => {
+      if (!report.conforms) {
+        return next(createValidationError(
+          formatRamlValidationReport(report, 'header')))
+      }
+    })
     return next()
   }
 }
@@ -271,7 +298,7 @@ function headerHandler (headerParameters, options) {
 /**
  * Handle incoming request bodies.
  *
- * @param  {Object}   bodies
+ * @param  {Array<webapi-parser.Payload>} bodies
  * @param  {String}   path
  * @param  {String}   methodName
  * @param  {Object}   options
@@ -371,7 +398,7 @@ function jsonBodyHandler (body, path, method, options) {
   // Validate RAML 1.0 min/maxProperties and additionalProperties
   const minProperties = body.minProperties
   const maxProperties = body.maxProperties
-  const additionalProperties = body.additionalProperties !== false
+  const additionalProperties = body.additionalProperties
 
   if (minProperties > 0) {
     middleware.push(function (req, res, next) {
@@ -814,6 +841,18 @@ function formatRamlErrors (errors, type) {
       schema: error.attr,
       data: error.value,
       message: 'invalid ' + type + ' (' + error.rule + ', ' + error.attr + ')'
+    }
+  })
+}
+
+function formatRamlValidationReport (report, type) {
+  return report.results.map(result => {
+    return {
+      type: type,
+      keyword: result.source.keyword,
+      targetProperty: result.targetProperty,
+      level: result.level,
+      message: `invalid ${type}: ${result.message} (${result.source.keyword})`
     }
   })
 }
