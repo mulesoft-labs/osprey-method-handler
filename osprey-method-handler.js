@@ -306,47 +306,44 @@ function headerHandler (headers = [], options) {
  */
 function bodyHandler (bodies, path, methodName, options) {
   const bodyMap = {}
-  const types = Object.keys(bodies)
 
-  types.forEach(function (type) {
-    const handlers = BODY_HANDLERS
-      .filter(function (handler) {
-        return is.is(handler[0], type)
-      })
-    // Do not parse on wildcards.
+  bodies.forEach(body => {
+    const type = body.mediaType.value()
+    const handlers = BODY_HANDLERS.filter(([ct, handler]) => is.is(ct, type))
+    // Do not parse on wildcards
     if (handlers.length > 1 && !options.parseBodiesOnWildcard) {
       return
     }
 
-    // Attach existing handlers.
-    handlers.forEach(function (handler) {
-      const properType = handler[0]
-      const fn = handler[1]
-
-      bodyMap[properType] = fn(bodies[type], path, methodName, options)
+    // Attach existing handlers
+    handlers.forEach(([properType, fn]) {
+      // 4 DIVED HERE >>v Rework each handler
+      bodyMap[properType] = fn(body, path, methodName, options)
     })
   })
+
+  const types = bodies.map(b => body.mediaType.value())
   const validTypes = types.map(JSON.stringify).join(', ')
   const expectedMessage = types.length === 1 ? validTypes : 'one of ' + validTypes
 
   return function ospreyContentType (req, res, next) {
-    const contentType = req.headers['content-type']
+    const ct = req.headers['content-type']
 
     // Error when no body has been sent.
     if (!is.hasBody(req)) {
       return next(createError(
         415,
         'No body sent with request for ' + req.method + ' ' + req.originalUrl +
-        ' with content-type "' + contentType + '"'
+        ' with content-type "' + ct + '"'
       ))
     }
 
-    const type = is.is(contentType, types)
+    const type = is.is(ct, types)
 
     if (!type) {
       return next(createError(
         415,
-        'Unsupported content-type header "' + contentType + '", expected ' + expectedMessage
+        'Unsupported content-type header "' + ct + '", expected ' + expectedMessage
       ))
     }
 
@@ -359,7 +356,7 @@ function bodyHandler (bodies, path, methodName, options) {
 /**
  * Handle JSON requests.
  *
- * @param  {Object}   body
+ * @param  {webapi-parser.Payload}   body
  * @param  {String}   path
  * @param  {String}   method
  * @param  {Object}   options
@@ -509,7 +506,7 @@ function jsonBodyValidationHandler (schema, path, method, options) {
 /**
  * Handle url encoded form requests.
  *
- * @param  {Object}   body
+ * @param  {webapi-parser.Payload}   body
  * @param  {String}   path
  * @param  {String}   method
  * @param  {Object}   options
@@ -561,7 +558,7 @@ function urlencodedBodyValidationHandler (parameters, options) {
 /**
  * Handle XML requests.
  *
- * @param  {Object}   body
+ * @param  {webapi-parser.Payload}   body
  * @param  {String}   path
  * @param  {String}   method
  * @param  {Object}   options
@@ -658,7 +655,7 @@ function xmlBodyValidationHandler (str, path, method) {
 /**
  * Handle and validate form data requests.
  *
- * @param  {Object}   body
+ * @param  {webapi-parser.Payload}   body
  * @param  {String}   path
  * @param  {String}   method
  * @param  {Object}   options
