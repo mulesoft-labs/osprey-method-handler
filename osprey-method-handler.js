@@ -65,9 +65,9 @@ standardHeaders.request.forEach(function (header) {
  * @type {Array}
  */
 const BODY_HANDLERS = [
-  // 5 DIVED HERE >>v
   ['application/json', jsonBodyHandler],
   ['text/xml', xmlBodyHandler],
+  // 5 DIVED HERE >>v
   ['application/x-www-form-urlencoded', urlencodedBodyHandler],
   ['multipart/form-data', formDataBodyHandler]
 ]
@@ -372,8 +372,10 @@ function jsonBodyHandler (body, path, methodName, options) {
   })
   const middleware = [jsonBodyParser]
 
-  // Check whether body.schema has type defined.
-  // In case it's not defined, its type would be AnyShape.
+  // Check whether body.schema has type specified.
+  // In case it's not specified, its type would be AnyShape, but
+  // we can't check instance against it because it's a parent type
+  // of multiple other types.
   if (!(body.schema instanceof wp.model.domain.NodeShape)) {
     return compose(middleware)
   }
@@ -564,11 +566,11 @@ function urlencodedBodyValidationHandler (parameters, options) {
  * @return {Function}
  */
 function xmlBodyHandler (body, path, methodName, options) {
-  const xmlParser = xmlBodyParser(options)
-  const middleware = [xmlParser]
+  const middleware = [xmlBodyParser(options)]
 
-  if (body && body.schema) {
-    middleware.push(xmlBodyValidationHandler(body.schema, path, methodName))
+  if (body.schema instanceof wp.model.domain.SchemaShape) {
+    middleware.push(xmlBodyValidationHandler(
+      body.schema.raw.value(), path, methodName))
   }
 
   return compose(middleware)
@@ -582,7 +584,8 @@ function xmlBodyHandler (body, path, methodName, options) {
  */
 function xmlBodyParser (options) {
   const libxml = getLibXml()
-  const bodyParser = require('body-parser').text({ type: [], limit: options.limit })
+  const bodyParser = require('body-parser')
+    .text({ type: [], limit: options.limit })
 
   // Parse the request body text.
   function xmlParser (req, res, next) {
