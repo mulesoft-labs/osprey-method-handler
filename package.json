@@ -56,7 +56,6 @@
     "debug": "^4.0.0",
     "http-errors": "^1.2.8",
     "is-stream": "^2.0.0",
-    "json-schema-compatibility": "^1.0.1",
     "lowercase-keys": "^2.0.0",
     "negotiator": "^0.6.0",
     "object-values": "^2.0.0",

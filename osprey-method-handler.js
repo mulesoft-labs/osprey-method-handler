@@ -65,6 +65,7 @@ standardHeaders.request.forEach(function (header) {
  * @type {Array}
  */
 const BODY_HANDLERS = [
+  // 5 DIVED HERE >>v
   ['application/json', jsonBodyHandler],
   ['text/xml', xmlBodyHandler],
   ['application/x-www-form-urlencoded', urlencodedBodyHandler],
@@ -316,9 +317,9 @@ function bodyHandler (bodies, path, methodName, options) {
     }
 
     // Attach existing handlers
-    handlers.forEach(([properType, fn]) {
+    handlers.forEach(([contentType, handler]) {
       // 4 DIVED HERE >>v Rework each handler
-      bodyMap[properType] = fn(body, path, methodName, options)
+      bodyMap[contentType] = handler(body, path, methodName, options)
     })
   })
 
@@ -358,11 +359,11 @@ function bodyHandler (bodies, path, methodName, options) {
  *
  * @param  {webapi-parser.Payload}   body
  * @param  {String}   path
- * @param  {String}   method
+ * @param  {String}   methodName
  * @param  {Object}   options
  * @return {Function}
  */
-function jsonBodyHandler (body, path, method, options) {
+function jsonBodyHandler (body, path, methodName, options) {
   const jsonBodyParser = require('body-parser').json({
     type: [],
     strict: false,
@@ -370,35 +371,26 @@ function jsonBodyHandler (body, path, method, options) {
     reviver: options.reviver
   })
   const middleware = [jsonBodyParser]
-  let schema = (body && (body.properties || body.type)) || undefined
-  let isRAMLType = schema ? schema.constructor === {}.constructor : false
 
-  // This is most likely a JSON schema
-  if (!schema) {
-    schema = body.schema
-  // otherwise, it's an inline type
-  } else if (!isRAMLType) {
-    schema = body
-    isRAMLType = true
-  } else if (isRAMLType && Object.keys(schema).length === 0) {
-    schema = body
-  }
-
-  if (schema) {
-    middleware.push(jsonBodyValidationHandler(schema, path, method, options))
-  }
-
-  if (!isRAMLType) {
+  // Check whether body.schema has type defined.
+  // In case it's not defined, its type would be AnyShape.
+  if (!(body.schema instanceof wp.model.domain.NodeShape)) {
     return compose(middleware)
   }
 
-  // Validate RAML 1.0 min/maxProperties and additionalProperties
-  const minProperties = body.minProperties
-  const maxProperties = body.maxProperties
-  const additionalProperties = body.additionalProperties
+  middleware.push(async function ospreyJsonBody (req, res, next) {
+    const report = await body.schema.validate(req.body)
+    if (!report.conforms) {
+      return next(createValidationError(
+        formatRamlValidationReport(report, 'body')))
+    }
+    return next()
+  })
 
-  if (minProperties > 0) {
-    middleware.push(function (req, res, next) {
+  // Validate minProperties
+  const minProperties = body.schema.minProperties.option
+  if (minProperties !== undefined && minProperties > 0) {
+    middleware.push(function minPropertiesValidator (req, res, next) {
       if (Object.keys(req.body).length < minProperties) {
         return next(createValidationError(formatRamlErrors([{
           rule: 'minProperties',
@@ -410,8 +402,10 @@ function jsonBodyHandler (body, path, method, options) {
     })
   }
 
-  if (maxProperties > 0) {
-    middleware.push(function (req, res, next) {
+  // Validate maxProperties
+  const maxProperties = body.schema.maxProperties.option
+  if (maxProperties !== undefined && maxProperties > 0) {
+    middleware.push(function maxPropertiesValidator (req, res, next) {
       if (Object.keys(req.body).length > maxProperties) {
         return next(createValidationError(formatRamlErrors([{
           rule: 'maxProperties',
@@ -423,11 +417,16 @@ function jsonBodyHandler (body, path, method, options) {
     })
   }
 
+  // Validate additionalProperties
+  const additionalProperties = (
+    !!body.schema.additionalPropertiesSchema ||
+    body.schema.closed.value())
   if (!additionalProperties) {
-    middleware.push(function (req, res, next) {
-      const additionalPropertyFound = Object.keys(req.body).some(function (key) {
-        return !Object.prototype.hasOwnProperty.call(schema, key)
-      })
+    const schemaProps = body.schema.properties.map(p => p.name.value())
+    middleware.push(function additionalPropertiesValidator (req, res, next) {
+      const additionalPropertyFound = Object.keys(req.body)
+        .some(key => schemaProps.indexOf(key) !== -1)
+
       if (additionalPropertyFound) {
         return next(createValidationError(formatRamlErrors([{
           rule: 'additionalProperties',
@@ -445,12 +444,12 @@ function jsonBodyHandler (body, path, method, options) {
 /**
  * Validate JSON bodies.
  *
- * @param  {Object|String}  schema
+ * @param  {webapi-parser.NodeShape}  schema
  * @param  {String}         path
- * @param  {String}         method
+ * @param  {String}         methodName
  * @return {Function}
  */
-function jsonBodyValidationHandler (schema, path, method, options) {
+function jsonBodyValidationHandler (schema, path, methodName, options) {
   const jsonSchemaCompatibility = require('json-schema-compatibility')
   if (Array.isArray(schema)) {
     schema = schema[0]
@@ -478,7 +477,7 @@ function jsonBodyValidationHandler (schema, path, method, options) {
 
       validate = options.ajv ? options.ajv.compile(schema) : ajv.compile(schema)
     } catch (err) {
-      err.message = 'Unable to compile JSON schema for ' + method + ' ' + path + ': ' + err.message
+      err.message = 'Unable to compile JSON schema for ' + methodName + ' ' + path + ': ' + err.message
       throw err
     }
   }
@@ -508,11 +507,11 @@ function jsonBodyValidationHandler (schema, path, method, options) {
  *
  * @param  {webapi-parser.Payload}   body
  * @param  {String}   path
- * @param  {String}   method
+ * @param  {String}   methodName
  * @param  {Object}   options
  * @return {Function}
  */
-function urlencodedBodyHandler (body, path, method, options) {
+function urlencodedBodyHandler (body, path, methodName, options) {
   const urlencodedBodyParser = require('body-parser').urlencoded({
     type: [],
     extended: false,
@@ -560,16 +559,16 @@ function urlencodedBodyValidationHandler (parameters, options) {
  *
  * @param  {webapi-parser.Payload}   body
  * @param  {String}   path
- * @param  {String}   method
+ * @param  {String}   methodName
  * @param  {Object}   options
  * @return {Function}
  */
-function xmlBodyHandler (body, path, method, options) {
+function xmlBodyHandler (body, path, methodName, options) {
   const xmlParser = xmlBodyParser(options)
   const middleware = [xmlParser]
 
   if (body && body.schema) {
-    middleware.push(xmlBodyValidationHandler(body.schema, path, method))
+    middleware.push(xmlBodyValidationHandler(body.schema, path, methodName))
   }
 
   return compose(middleware)
