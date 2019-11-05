@@ -68,7 +68,6 @@ const BODY_HANDLERS = [
   ['application/json', jsonBodyHandler],
   ['text/xml', xmlBodyHandler],
   ['application/x-www-form-urlencoded', urlencodedBodyHandler],
-  // 5 DIVED HERE >>v
   ['multipart/form-data', formDataBodyHandler]
 ]
 
@@ -611,17 +610,17 @@ function getLibXml () {
  *
  * @param  {String}   str
  * @param  {String}   path
- * @param  {String}   method
+ * @param  {String}   methodName
  * @return {Function}
  */
-function xmlBodyValidationHandler (str, path, method) {
+function xmlBodyValidationHandler (str, path, methodName) {
   const libxml = getLibXml()
   let schema
 
   try {
     schema = libxml.parseXml(str)
   } catch (err) {
-    err.message = 'Unable to compile XML schema for ' + method + ' ' + path + ': ' + err.message
+    err.message = 'Unable to compile XML schema for ' + methodName + ' ' + path + ': ' + err.message
     throw err
   }
 
@@ -639,114 +638,56 @@ function xmlBodyValidationHandler (str, path, method) {
  *
  * @param  {webapi-parser.Payload}   body
  * @param  {String}   path
- * @param  {String}   method
+ * @param  {String}   methodName
  * @param  {Object}   options
  * @return {Function}
  */
-function formDataBodyHandler (body, path, method, options) {
+function formDataBodyHandler (body, path, methodName, options) {
   const Busboy = require('busboy')
-  const params = (body && (body.formParameters || body.properties)) || {}
-  const validators = {}
-  const sanitizers = {}
+  const params = {}
+  const hasProperties = body.schema && body.schema.properties
+  if (hasProperties) {
+    body.schema.properties.forEach(prop => {
+      params[prop.name.value()] = prop
+    })
+  }
 
-  // Asynchonously sanitizes and validates values.
-  Object.keys(params).forEach(function (key) {
-    const param = extend(params[key], { repeat: false })
-
-    sanitizers[key] = ramlSanitize.rule(param)
-    validators[key] = ramlValidate.rule(param)
-  })
-
-  return function ospreyMethodForm (req, res, next) {
-    const received = {}
-    let errored = false
-    const busboy = req.form = new Busboy({ headers: req.headers, limits: options.busboyLimits })
-    const errors = {}
-
-    // Override `emit` to provide validations. Only validate when
-    // `formParameters` (or RAML 1.0 `properties`) are set.
-    if (body && (body.formParameters || body.properties)) {
-      busboy.emit = function emit (type, name, value, a, b, c) {
-        const close = type === 'field' ? noop : function () {
-          value.resume()
-        }
-
-        if (type === 'field' || type === 'file') {
-          if (!Object.prototype.hasOwnProperty.call(params, name)) {
-            return close()
-          }
-
-          // Sanitize the value before emitting.
-          value = sanitizers[name](value)
-
-          // Check for repeat errors.
-          if (received[name] && !params[name].repeat) {
-            errors[name] = {
-              valid: false,
-              rule: 'repeat',
-              value: value,
-              key: name,
-              attr: false
-            }
-
-            errored = true
-
-            return close()
-          }
-
-          // Set the value to be already received.
-          received[name] = true
-
-          // Check the value is valid.
-          const result = validators[name](value, name)
-
-          // Collect invalid values.
-          if (!result.valid) {
-            errored = true
-            errors[name] = result
-          }
-
-          // Don't emit when an error has already occured. Check after the
-          // value validation because we want to collect all possible errors.
-          if (errored) {
-            return close()
-          }
-        } else if (type === 'finish') {
-          // Finish emits twice, but is actually done the second time.
-          if (!this._done) {
-            return Busboy.prototype.emit.call(this, 'finish')
-          }
-
-          const validationErrors = Object.keys(params)
-            .filter(function (key) {
-              return params[key].required && !received[key]
-            })
-            .map(function (key) {
-              return {
-                valid: false,
-                rule: 'required',
-                value: undefined,
-                key: key,
-                attr: true
-              }
-            })
-            .concat(values(errors))
-          if (validationErrors.length) {
-            Busboy.prototype.emit.call(
-              this,
-              'error',
-              createValidationError(formatRamlErrors(validationErrors, 'form'))
-            )
-
-            return
-          }
-        }
-
-        return Busboy.prototype.emit.apply(this, arguments)
-      }
+  return function ospreyFormBodyValidator (req, res, next) {
+    if (!hasProperties) {
+      return next()
     }
+    const busboy = req.form = new Busboy({
+      headers: req.headers,
+      limits: options.busboyLimits
+    })
+    const bodyData = {}
 
-    return next()
+    // Override `emit` to provide validations
+    busboy.emit = async function emit (type, name, value, a, b, c) {
+      const close = type === 'field' ? noop : function () {
+        value.resume()
+      }
+
+      if (type === 'field' || type === 'file') {
+        if (!params[name]) {
+          return close()
+        }
+        bodyData[name] = value
+      } else if (type === 'finish') {
+        // Finish emits twice, but is actually done the second time.
+        if (!this._done) {
+          return Busboy.prototype.emit.call(this, 'finish')
+        }
+
+        const report = await body.schema.validate(JSON.stringify(bodyData))
+        if (!report.conforms) {
+          return next(createValidationError(
+            formatRamlValidationReport(report, 'form')))
+        }
+      }
+
+      return Busboy.prototype.emit.apply(this, arguments)
+    }
   }
 }
 
