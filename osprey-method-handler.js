@@ -67,8 +67,8 @@ standardHeaders.request.forEach(function (header) {
 const BODY_HANDLERS = [
   ['application/json', jsonBodyHandler],
   ['text/xml', xmlBodyHandler],
-  // 5 DIVED HERE >>v
   ['application/x-www-form-urlencoded', urlencodedBodyHandler],
+  // 5 DIVED HERE >>v
   ['multipart/form-data', formDataBodyHandler]
 ]
 
@@ -380,8 +380,8 @@ function jsonBodyHandler (body, path, methodName, options) {
     return compose(middleware)
   }
 
-  middleware.push(async function ospreyJsonBody (req, res, next) {
-    const report = await body.schema.validate(req.body)
+  middleware.push(async function ospreyJsonBodyValidator (req, res, next) {
+    const report = await body.schema.validate(JSON.stringify(req.body))
     if (!report.conforms) {
       return next(createValidationError(
         formatRamlValidationReport(report, 'body')))
@@ -520,40 +520,20 @@ function urlencodedBodyHandler (body, path, methodName, options) {
     limit: options.limit,
     parameterLimit: options.parameterLimit
   })
-
   const middleware = [urlencodedBodyParser]
-  const params = (body && (body.formParameters || body.properties)) || undefined
 
-  if (params) {
-    middleware.push(urlencodedBodyValidationHandler(params, options))
+  if (body.schema) {
+    middleware.push(async function ospreyUrlencodedBodyValidator (req, res, next) {
+      const report = await body.schema.validate(JSON.stringify(req.body))
+      if (!report.conforms) {
+        return next(createValidationError(
+          formatRamlValidationReport(report, 'form')))
+      }
+      return next()
+    })
   }
 
   return compose(middleware)
-}
-
-/**
- * Validate url encoded form bodies.
- *
- * @param  {String} parameters
- * @return {String}
- */
-function urlencodedBodyValidationHandler (parameters, options) {
-  const sanitize = ramlSanitize(parameters)
-  const validate = ramlValidate(parameters, options.RAMLVersion)
-
-  return function ospreyUrlencodedBody (req, res, next) {
-    const body = sanitize(req.body)
-    const result = validate(body)
-
-    if (!result.valid) {
-      return next(createValidationError(formatRamlErrors(result.errors, 'form')))
-    }
-
-    // Discards invalid url encoded parameters.
-    req.body = body
-
-    return next()
-  }
 }
 
 /**
