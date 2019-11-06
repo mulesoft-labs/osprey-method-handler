@@ -67,7 +67,6 @@ Accepts the RAML schema as the first argument, method and path in subsequent arg
 
 **Options**
 
-* `ajv` Custom [Ajv](https://github.com/epoberezkin/ajv) instance to be used for JSON validation
 * `discardUnknownBodies` Discard undefined request streams (default: `true`)
 * `discardUnknownQueryParameters` Discard undefined query parameters (default: `true`)
 * `discardUnknownHeaders` Discard undefined header parameters (always includes known headers) (default: `true`)
@@ -77,13 +76,6 @@ Accepts the RAML schema as the first argument, method and path in subsequent arg
 * `parameterLimit` The [maximum number](https://github.com/expressjs/body-parser#parameterlimit) of URL-encoded parameters (default: `1000`)
 * `busboyLimits` The multipart limits defined by [Busboy](https://github.com/mscdex/busboy#busboy-methods)
 * `RAMLVersion` The RAML version passed to [raml-validate](https://github.com/mulesoft/node-raml-validate) (default: `'RAML08'`)
-
-### Adding JSON schemas
-
-If you are using external JSON schemas with `$ref`, you can add them to the module before you compile the middleware. Use `handler.addJsonSchema(schema, key)` to compile automatically when used.
-
-`handler.addJsonSchema()` accepts a third (optional) `options` argument. Supported `options` are:
-* `ajv` Custom [Ajv](https://github.com/epoberezkin/ajv) instance. E.g. `handler.addJsonSchema(schema, key, {ajv: myAjvInstance})`. The provided ajv instance can later be passed as an option to the handler to perform JSON validation.
 
 ### Validation Errors
 

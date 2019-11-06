@@ -3,35 +3,13 @@ const extend = require('xtend')
 const parseurl = require('parseurl')
 const querystring = require('querystring')
 const createError = require('http-errors')
-const lowercaseKeys = require('lowercase-keys')
-const ramlSanitize = require('raml-sanitize')()
-const ramlValidate = require('raml-validate')()
-const isStream = require('is-stream')
-const values = require('object-values')
 const Negotiator = require('negotiator')
 const standardHeaders = require('standard-headers')
 const compose = require('compose-middleware').compose
-const Ajv = require('ajv')
 const debug = require('debug')('osprey-method-handler')
 const wp = require('webapi-parser')
 
-const ajv = Ajv({
-  schemaId: 'auto',
-  allErrors: true,
-  verbose: true,
-  jsonPointers: true,
-  errorDataPath: 'property'
-})
-ajv.addMetaSchema(require('ajv/lib/refs/json-schema-draft-04.json'))
-
-/**
- * Detect JSON schema v3.
- *
- * @type {RegExp}
- */
-const JSON_SCHEMA_03 = /^http:\/\/json-schema\.org\/draft-03\/(?:hyper-)?schema/i
-
-const DEFAULT_OPTIONS =  {
+const DEFAULT_OPTIONS = {
   discardUnknownBodies: true,
   discardUnknownQueryParameters: true,
   discardUnknownHeaders: true,
@@ -72,37 +50,6 @@ const BODY_HANDLERS = [
 ]
 
 /**
- * Set custom file validation.
- *
- * @param  {Stream}  value
- * @return {Boolean}
- */
-ramlValidate.TYPES.file = function (stream) {
-  return isStream(stream)
-}
-
-/**
- * Export `ospreyMethodHandler`.
- */
-module.exports = ospreyMethodHandler
-module.exports.addJsonSchema = addJsonSchema
-
-/**
- * Expose a method to add JSON schemas before compilation.
- *
- * @param {Object} schema
- * @param {String} key
- */
-function addJsonSchema (schema, key, options) {
-  options = options || {}
-  if (options.ajv) {
-    options.ajv.addSchema(schema, key)
-  } else {
-    ajv.addSchema(schema, key)
-  }
-}
-
-/**
  * Create a middleware request/response handler.
  *
  * @param  {webapi-parser.Operation} method
@@ -111,7 +58,6 @@ function addJsonSchema (schema, key, options) {
  * @return {Function}
  */
 function ospreyMethodHandler (method, path, options) {
-// function ospreyMethodHandler (schema, path, methodName, options) {
   const methodName = method.method.value()
   options = extend(DEFAULT_OPTIONS, options)
 
@@ -127,7 +73,8 @@ function ospreyMethodHandler (method, path, options) {
   middleware.push(headerHandler(method.request.headers, options))
 
   if (method.request.payloads.length > 0) {
-    middleware.push(bodyHandler(method.request.payloads, path, methodName, options))
+    middleware.push(
+      bodyHandler(method.request.payloads, path, methodName, options))
   } else {
     if (options.discardUnknownBodies) {
       debug(
@@ -141,12 +88,11 @@ function ospreyMethodHandler (method, path, options) {
   }
 
   if (method.responses.length > 0) {
-    // 3 DIVED HERE >>v
     middleware.push(acceptsHandler(method.responses, path, methodName))
   }
 
-  if (method.queryParameters) {
-    middleware.push(queryHandler(method.queryParameters, options))
+  if (method.request.queryParameters.length > 0) {
+    middleware.push(queryHandler(method.request.queryParameters, options))
   } else {
     if (options.discardUnknownQueryParameters) {
       debug(
@@ -187,19 +133,21 @@ function acceptsHandler (responses, path, methodName) {
   // The user will accept anything when there are no types defined.
   if (mediaTypes.length < 1) {
     debug('%s %s: No accepts media types defined', methodName, path)
-
     return []
   }
 
   const validTypes = mediaTypes.map(JSON.stringify).join(', ')
-  const expectedMessage = mediaTypes.length === 1 ? validTypes : 'one of ' + validTypes
+  const expectedMessage = mediaTypes.length === 1
+    ? validTypes
+    : `one of ${validTypes}`
 
   return function ospreyAccepts (req, res, next) {
     const negotiator = new Negotiator(req)
 
     if (!negotiator.mediaType(mediaTypes)) {
       return next(createError(
-        406, 'Unsupported accept header "' + req.headers.accept + '", expected ' + expectedMessage
+        406,
+        `Unsupported accept header "${req.headers.accept}", expected ${expectedMessage}`
       ))
     }
 
@@ -210,31 +158,44 @@ function acceptsHandler (responses, path, methodName) {
 /**
  * Create query string handling middleware.
  *
- * @param  {Object}   queryParameters
+ * @param  {Array<webapi-parser.Parameter>}   queryParameters
  * @param  {Object}   options
  * @return {Function}
  */
 function queryHandler (queryParameters, options) {
-  const sanitize = ramlSanitize(queryParameters)
-  const validate = ramlValidate(queryParameters, options.RAMLVersion)
+  const parameters = {}
+  queryParameters.forEach(qp => {
+    parameters[qp.name.value()] = qp
+  })
 
-  return function ospreyQuery (req, res, next) {
+  return async function ospreyQuery (req, res, next) {
     const reqUrl = parseurl(req)
-    const query = sanitize(parseQuerystring(reqUrl.query))
-    const result = validate(query)
-
-    if (!result.valid) {
-      return next(createValidationError(formatRamlErrors(result.errors, 'query')))
-    }
-
-    const qs = querystring.stringify(query)
+    let query = parseQuerystring(reqUrl.query)
 
     if (options.discardUnknownQueryParameters) {
-      req.url = reqUrl.pathname + (qs ? '?' + qs : '')
-      req.query = query
-    } else {
-      req.query = extend(req.query, query)
+      query = Object.fromEntries(
+        Object.entries(query)
+          .filter(([name, val]) => !!parameters[name])
+      )
+      const qs = querystring.stringify(query)
+      req.url = reqUrl.pathname + (qs ? `?${qs}` : '')
     }
+    req.query = query
+
+    const reports = await Promise.all(
+      Object.entries(query || {}).map(([name, value]) => {
+        const param = parameters[name]
+        return (param && param.schema)
+          ? param.schema.validate(value)
+          : Promise.resolve()
+      })
+    )
+    reports.forEach(report => {
+      if (!report.conforms) {
+        return next(createValidationError(
+          formatRamlValidationReport(report, 'query')))
+      }
+    })
 
     return next()
   }
@@ -244,11 +205,9 @@ function queryHandler (queryParameters, options) {
  * Parse query strings with support for array syntax (E.g. `a[]=1&a[]=2`).
  */
 function parseQuerystring (query) {
-  if (query == null) {
-    return {}
-  }
-
-  return querystring.parse(query.replace(/(?:%5B|\[)\d*(?:%5D|])=/ig, '='))
+  return query
+    ? querystring.parse(query.replace(/(?:%5B|\[)\d*(?:%5D|])=/ig, '='))
+    : {}
 }
 
 /**
@@ -259,21 +218,20 @@ function parseQuerystring (query) {
  * @return {Function}
  */
 function headerHandler (headers = [], options) {
-  const schemas = {}
+  let schemas = {}
   headers.map(header => {
     header.withName(header.name.value().toLowerCase())
     schemas[header.name.value()] = header
   })
   schemas = extend(DEFAULT_REQUEST_HEADER_PARAMS, schemas)
 
-  // Unsets invalid headers. Does not touch `rawHeaders`.
-  if (options.discardUnknownHeaders) {
-    const definedHeaders = Object.entries(req.headers)
-      .filter(([name, val]) => !!schemas[name])
-    req.headers = Object.fromEntries(definedHeaders)
-  }
-
   return async function ospreyMethodHeader (req, res, next) {
+    // Unsets invalid headers. Does not touch `rawHeaders`.
+    if (options.discardUnknownHeaders) {
+      const definedHeaders = Object.entries(req.headers)
+        .filter(([name, val]) => !!schemas[name])
+      req.headers = Object.fromEntries(definedHeaders)
+    }
     const reports = await Promise.all(
       Object.entries(req.headers || {}).map(([name, value]) => {
         const schema = schemas[name]
@@ -311,14 +269,16 @@ function bodyHandler (bodies, path, methodName, options) {
     }
 
     // Attach existing handlers
-    handlers.forEach(([contentType, handler]) {
+    handlers.forEach(([contentType, handler]) => {
       bodyMap[contentType] = handler(body, path, methodName, options)
     })
   })
 
-  const types = bodies.map(b => body.mediaType.value())
+  const types = bodies.map(b => b.mediaType.value())
   const validTypes = types.map(JSON.stringify).join(', ')
-  const expectedMessage = types.length === 1 ? validTypes : 'one of ' + validTypes
+  const expectedMessage = types.length === 1
+    ? validTypes
+    : `one of ${validTypes}`
 
   return function ospreyContentType (req, res, next) {
     const ct = req.headers['content-type']
@@ -327,8 +287,8 @@ function bodyHandler (bodies, path, methodName, options) {
     if (!is.hasBody(req)) {
       return next(createError(
         415,
-        'No body sent with request for ' + req.method + ' ' + req.originalUrl +
-        ' with content-type "' + ct + '"'
+        `No body sent with request for ${req.method} ${req.originalUrl} ` +
+        `with content-type "${ct}"`
       ))
     }
 
@@ -337,12 +297,11 @@ function bodyHandler (bodies, path, methodName, options) {
     if (!type) {
       return next(createError(
         415,
-        'Unsupported content-type header "' + ct + '", expected ' + expectedMessage
+        `Unsupported content-type header "${ct}", expected ${expectedMessage}`
       ))
     }
 
     const fn = bodyMap[type]
-
     return fn ? fn(req, res, next) : next()
   }
 }
@@ -434,67 +393,6 @@ function jsonBodyHandler (body, path, methodName, options) {
   }
 
   return compose(middleware)
-}
-
-/**
- * Validate JSON bodies.
- *
- * @param  {webapi-parser.NodeShape}  schema
- * @param  {String}         path
- * @param  {String}         methodName
- * @return {Function}
- */
-function jsonBodyValidationHandler (schema, path, methodName, options) {
-  const jsonSchemaCompatibility = require('json-schema-compatibility')
-  if (Array.isArray(schema)) {
-    schema = schema[0]
-  }
-  if (schema.type === 'json' && typeof schema.content === 'string') {
-    schema = schema.content
-  }
-  const isRAMLType = typeof schema === 'object'
-  let validate
-
-  // RAML data types
-  if (isRAMLType) {
-    validate = ramlValidate(schema, options.RAMLVersion)
-
-  // JSON schema
-  } else {
-    try {
-      schema = JSON.parse(schema)
-
-      // Convert draft-03 schema to 04.
-      if (!options.ajv && JSON_SCHEMA_03.test(schema.$schema)) {
-        schema = jsonSchemaCompatibility.v4(schema)
-        schema.$schema = 'http://json-schema.org/draft-04/schema'
-      }
-
-      validate = options.ajv ? options.ajv.compile(schema) : ajv.compile(schema)
-    } catch (err) {
-      err.message = 'Unable to compile JSON schema for ' + methodName + ' ' + path + ': ' + err.message
-      throw err
-    }
-  }
-
-  return function ospreyJsonBody (req, res, next) {
-    const result = validate(req.body)
-
-    // RAML data types
-    if (isRAMLType) {
-      if (!result.valid) {
-        return next(createValidationError(formatRamlErrors(result.errors, 'json')))
-      }
-
-    // JSON schema
-    } else {
-      if (!result) {
-        return next(createValidationError(formatJsonErrors(validate.errors)))
-      }
-    }
-
-    return next()
-  }
 }
 
 /**
@@ -614,7 +512,7 @@ function xmlBodyValidationHandler (str, path, methodName) {
   try {
     schema = libxml.parseXml(str)
   } catch (err) {
-    err.message = 'Unable to compile XML schema for ' + methodName + ' ' + path + ': ' + err.message
+    err.message = `Unable to compile XML schema for ${methodName} ${path}: ${err.message}`
     throw err
   }
 
@@ -658,6 +556,7 @@ function formDataBodyHandler (body, path, methodName, options) {
 
     // Override `emit` to provide validations
     busboy.emit = async function emit (type, name, value, a, b, c) {
+      function noop () {}
       const close = type === 'field' ? noop : function () {
         value.resume()
       }
@@ -693,7 +592,8 @@ function formDataBodyHandler (body, path, methodName, options) {
  * @return {Error}
  */
 function createValidationError (errors) {
-  const self = createError(400, 'Request failed to validate against RAML definition')
+  const self = createError(
+    400, 'Request failed to validate against RAML definition')
 
   self.requestErrors = errors
   self.ramlValidation = true
@@ -736,11 +636,6 @@ function ospreyFastQuery (req, res, next) {
 }
 
 /**
- * Noop.
- */
-function noop () {}
-
-/**
  * Make RAML validation errors match standard format.
  *
  * @param  {Array} errors
@@ -754,7 +649,7 @@ function formatRamlErrors (errors, type) {
       keyword: error.rule,
       schema: error.attr,
       data: error.value,
-      message: 'invalid ' + type + ' (' + error.rule + ', ' + error.attr + ')'
+      message: `invalid ${type} (${error.rule}, ${error.attr})`
     }
   })
 }
@@ -767,25 +662,6 @@ function formatRamlValidationReport (report, type) {
       targetProperty: result.targetProperty,
       level: result.level,
       message: `invalid ${type}: ${result.message} (${result.source.keyword})`
-    }
-  })
-}
-
-/**
- * Make JSON validation errors match standard format.
- *
- * @param  {Array} errors
- * @return {Array}
- */
-function formatJsonErrors (errors) {
-  return errors.map(function (error) {
-    return {
-      type: 'json',
-      keyword: error.keyword,
-      dataPath: error.dataPath,
-      message: error.message,
-      data: error.data,
-      schema: error.schema
     }
   })
 }
@@ -811,3 +687,5 @@ function formatXmlErrors (errors) {
     }
   })
 }
+
+module.exports = ospreyMethodHandler
