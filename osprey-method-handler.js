@@ -127,7 +127,6 @@ function ospreyMethodHandler (method, path, options) {
   middleware.push(headerHandler(method.request.headers, options))
 
   if (method.request.payloads.length > 0) {
-    // 3 DIVED HERE >>v
     middleware.push(bodyHandler(method.request.payloads, path, methodName, options))
   } else {
     if (options.discardUnknownBodies) {
@@ -141,8 +140,9 @@ function ospreyMethodHandler (method, path, options) {
     }
   }
 
-  if (method.responses) {
-    middleware.push(acceptsHandler(method.responses, path, methodName, options))
+  if (method.responses.length > 0) {
+    // 3 DIVED HERE >>v
+    middleware.push(acceptsHandler(method.responses, path, methodName))
   }
 
   if (method.queryParameters) {
@@ -165,7 +165,7 @@ function ospreyMethodHandler (method, path, options) {
 /**
  * Create a HTTP accepts handler.
  *
- * @param  {Object}   responses
+ * @param  {Array<webapi-parser.Response>}   responses
  * @param  {String}   path
  * @param  {String}   methodName
  * @return {Function}
@@ -173,24 +173,19 @@ function ospreyMethodHandler (method, path, options) {
 function acceptsHandler (responses, path, methodName) {
   const accepts = {}
 
-  // Collect all valid response types.
-  Object.keys(responses || {})
-    .filter(function (code) {
-      return code >= 200 && code < 300
+  responses.filter(response => {
+    const code = parseInt(response.statusCode.value())
+    return code >= 200 && code < 300
+  }).forEach(response => {
+    response.payloads.forEach(body => {
+      accepts[body.mediaType.value()] = true
     })
-    .forEach(function (code) {
-      const response = responses[code]
-      const body = (response && response.body) || {}
-
-      Object.keys(body).forEach(function (type) {
-        accepts[type] = true
-      })
-    })
+  })
 
   const mediaTypes = Object.keys(accepts)
 
   // The user will accept anything when there are no types defined.
-  if (!mediaTypes.length) {
+  if (mediaTypes.length < 1) {
     debug('%s %s: No accepts media types defined', methodName, path)
 
     return []
@@ -317,7 +312,6 @@ function bodyHandler (bodies, path, methodName, options) {
 
     // Attach existing handlers
     handlers.forEach(([contentType, handler]) {
-      // 4 DIVED HERE >>v Rework each handler
       bodyMap[contentType] = handler(body, path, methodName, options)
     })
   })
