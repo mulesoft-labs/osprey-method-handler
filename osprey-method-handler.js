@@ -15,8 +15,7 @@ const DEFAULT_OPTIONS = {
   discardUnknownHeaders: true,
   parseBodiesOnWildcard: false,
   limit: '100kb',
-  parameterLimit: 1000,
-  RAMLVersion: 'RAML08'
+  parameterLimit: 1000
 }
 
 /**
@@ -31,10 +30,7 @@ standardHeaders.request.forEach(function (header) {
   DEFAULT_REQUEST_HEADER_PARAMS[header] = new wp.model.domain.Parameter()
     .withName(header)
     .withRequired(false)
-    .withSchema(
-      new wp.model.domain.ScalarShape()
-        .withName('schema')
-        .withDataType('http://www.w3.org/2001/XMLSchema#string'))
+    .withSchema(new wp.model.domain.AnyShape().withName('schema'))
 })
 
 /**
@@ -55,10 +51,10 @@ const BODY_HANDLERS = [
  * @param  {webapi-parser.Operation} method
  * @param  {String}   path
  * @param  {Object}   options
+ * @param  {String}   methodName
  * @return {Function}
  */
-function ospreyMethodHandler (method, path, options) {
-  const methodName = method.method.value()
+function ospreyMethodHandler (method, path, options, methodName) {
   options = extend(DEFAULT_OPTIONS, options)
 
   const middleware = []
@@ -70,11 +66,14 @@ function ospreyMethodHandler (method, path, options) {
   })
 
   // Headers *always* have a default handler.
-  middleware.push(headerHandler(method.request.headers, options))
+  const headers = (method && method.request)
+    ? method.request.headers
+    : []
+  middleware.push(headerHandler(headers, options))
 
-  if (method.request.payloads.length > 0) {
-    middleware.push(
-      bodyHandler(method.request.payloads, path, methodName, options))
+  if (method && method.request.payloads.length > 0) {
+    middleware.push(bodyHandler(
+      method.request.payloads, path, methodName, options))
   } else {
     if (options.discardUnknownBodies) {
       debug(
@@ -87,11 +86,11 @@ function ospreyMethodHandler (method, path, options) {
     }
   }
 
-  if (method.responses.length > 0) {
+  if (method && method.responses.length > 0) {
     middleware.push(acceptsHandler(method.responses, path, methodName))
   }
 
-  if (method.request.queryParameters.length > 0) {
+  if (method && method.request.queryParameters.length > 0) {
     middleware.push(queryHandler(method.request.queryParameters, options))
   } else {
     if (options.discardUnknownQueryParameters) {
@@ -186,16 +185,15 @@ function queryHandler (queryParameters, options) {
       Object.entries(query || {}).map(([name, value]) => {
         const param = parameters[name]
         return (param && param.schema)
-          ? param.schema.validate(value)
+          ? validateWithExtras(param, value)
           : Promise.resolve()
       })
     )
-    reports.forEach(report => {
-      if (!report.conforms) {
-        return next(createValidationError(
-          formatRamlValidationReport(report, 'query')))
-      }
-    })
+    const failedReport = reports.filter(r => !r.conforms).pop()
+    if (failedReport) {
+      return next(createValidationError(
+        formatRamlValidationReport(failedReport, 'query')))
+    }
 
     return next()
   }
@@ -218,32 +216,33 @@ function parseQuerystring (query) {
  * @return {Function}
  */
 function headerHandler (headers = [], options) {
-  let schemas = {}
+  let params = {}
   headers.map(header => {
     header.withName(header.name.value().toLowerCase())
-    schemas[header.name.value()] = header
+    params[header.name.value()] = header
   })
-  schemas = extend(DEFAULT_REQUEST_HEADER_PARAMS, schemas)
+  params = extend(DEFAULT_REQUEST_HEADER_PARAMS, params)
 
   return async function ospreyMethodHeader (req, res, next) {
     // Unsets invalid headers. Does not touch `rawHeaders`.
     if (options.discardUnknownHeaders) {
       const definedHeaders = Object.entries(req.headers)
-        .filter(([name, val]) => !!schemas[name])
+        .filter(([name, val]) => !!params[name])
       req.headers = Object.fromEntries(definedHeaders)
     }
     const reports = await Promise.all(
       Object.entries(req.headers || {}).map(([name, value]) => {
-        const schema = schemas[name]
-        return schema ? schema.validate(value) : Promise.resolve()
+        const param = params[name]
+        return param
+          ? validateWithExtras(param, value)
+          : Promise.resolve()
       })
     )
-    reports.forEach(report => {
-      if (!report.conforms) {
-        return next(createValidationError(
-          formatRamlValidationReport(report, 'header')))
-      }
-    })
+    const failedReport = reports.filter(r => !r.conforms).pop()
+    if (failedReport) {
+      return next(createValidationError(
+        formatRamlValidationReport(failedReport, 'header')))
+    }
     return next()
   }
 }
@@ -282,7 +281,6 @@ function bodyHandler (bodies, path, methodName, options) {
 
   return function ospreyContentType (req, res, next) {
     const ct = req.headers['content-type']
-
     // Error when no body has been sent.
     if (!is.hasBody(req)) {
       return next(createError(
@@ -333,7 +331,7 @@ function jsonBodyHandler (body, path, methodName, options) {
   }
 
   middleware.push(async function ospreyJsonBodyValidator (req, res, next) {
-    const report = await body.schema.validate(JSON.stringify(req.body))
+    const report = await validateWithExtras(body, JSON.stringify(req.body))
     if (!report.conforms) {
       return next(createValidationError(
         formatRamlValidationReport(report, 'body')))
@@ -415,7 +413,7 @@ function urlencodedBodyHandler (body, path, methodName, options) {
 
   if (body.schema) {
     middleware.push(async function ospreyUrlencodedBodyValidator (req, res, next) {
-      const report = await body.schema.validate(JSON.stringify(req.body))
+      const report = await validateWithExtras(body, JSON.stringify(req.body))
       if (!report.conforms) {
         return next(createValidationError(
           formatRamlValidationReport(report, 'form')))
@@ -572,7 +570,7 @@ function formDataBodyHandler (body, path, methodName, options) {
           return Busboy.prototype.emit.call(this, 'finish')
         }
 
-        const report = await body.schema.validate(JSON.stringify(bodyData))
+        const report = await validateWithExtras(body, JSON.stringify(bodyData))
         if (!report.conforms) {
           return next(createValidationError(
             formatRamlValidationReport(report, 'form')))
@@ -659,7 +657,8 @@ function formatRamlValidationReport (report, type) {
     return {
       type: type,
       keyword: result.source.keyword,
-      targetProperty: result.targetProperty,
+      dataPath: report.extras.dataPath,
+      data: report.extras.data,
       level: result.level,
       message: `invalid ${type}: ${result.message} (${result.source.keyword})`
     }
@@ -686,6 +685,24 @@ function formatXmlErrors (errors) {
       }
     }
   })
+}
+
+/**
+ * Validates value agains fiels schema adding extra info.
+ *
+ * @param  {any} field  Anything having field.schema.validate() API.
+ * @param  {any} value  Anything to be validated against schema.
+ * @return {Promise<webapi-parser.ValidationReport>}
+ */
+function validateWithExtras (field, value) {
+  return field.schema.validate(value)
+    .then(report => {
+      report.extras = {
+        dataPath: field.name.value(),
+        data: value
+      }
+      return report
+    })
 }
 
 module.exports = ospreyMethodHandler

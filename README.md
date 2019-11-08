@@ -75,7 +75,6 @@ Accepts the RAML schema as the first argument, method and path in subsequent arg
 * `limit` The [maximum bytes](https://github.com/expressjs/body-parser#limit-2) for XML, JSON and URL-encoded endpoints (default: `'100kb'`)
 * `parameterLimit` The [maximum number](https://github.com/expressjs/body-parser#parameterlimit) of URL-encoded parameters (default: `1000`)
 * `busboyLimits` The multipart limits defined by [Busboy](https://github.com/mscdex/busboy#busboy-methods)
-* `RAMLVersion` The RAML version passed to [raml-validate](https://github.com/mulesoft/node-raml-validate) (default: `'RAML08'`)
 
 ### Validation Errors
 
