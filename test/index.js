@@ -64,6 +64,7 @@ function makeRequestMethod (ct, schema) {
 }
 
 before(async function () {
+  this.timeout(10000)
   await wp.WebApiParser.init()
 })
 
@@ -1108,7 +1109,7 @@ describe('osprey method handler', function () {
           })
       })
 
-      it('should parse valid forms (RAML 0.8)', function () {
+      it.skip('should parse valid forms (RAML 0.8)', function () {
         const app = ospreyRouter()
         const dt = new wp.model.domain.NodeShape()
           .withName('schema')
@@ -1375,7 +1376,7 @@ describe('osprey method handler', function () {
               .withMinCount(0)
               .withName('more')
               .withRange(
-                new wp.morel.domain.ScalarShape()
+                new wp.model.domain.ScalarShape()
                   .withName('mode')
                   .withDataType('http://www.w3.org/2001/XMLSchema#string')
               )

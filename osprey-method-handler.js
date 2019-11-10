@@ -64,14 +64,13 @@ function ospreyMethodHandler (method, path, options, methodName) {
     req.resourcePath = path
     return next()
   })
+  const hasRequest = method && method.request
 
   // Headers *always* have a default handler.
-  const headers = (method && method.request)
-    ? method.request.headers
-    : []
+  const headers = hasRequest ? method.request.headers : []
   middleware.push(headerHandler(headers, options))
 
-  if (method && method.request.payloads.length > 0) {
+  if (hasRequest && method.request.payloads.length > 0) {
     middleware.push(bodyHandler(
       method.request.payloads, path, methodName, options))
   } else {
@@ -90,7 +89,7 @@ function ospreyMethodHandler (method, path, options, methodName) {
     middleware.push(acceptsHandler(method.responses, path, methodName))
   }
 
-  if (method && method.request.queryParameters.length > 0) {
+  if (hasRequest && method.request.queryParameters.length > 0) {
     middleware.push(queryHandler(method.request.queryParameters, options))
   } else {
     if (options.discardUnknownQueryParameters) {
