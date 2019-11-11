@@ -50,11 +50,11 @@ const BODY_HANDLERS = [
  *
  * @param  {webapi-parser.Operation} method
  * @param  {String}   path
- * @param  {Object}   options
  * @param  {String}   methodName
+ * @param  {Object}   options
  * @return {Function}
  */
-function ospreyMethodHandler (method, path, options, methodName) {
+function ospreyMethodHandler (method, path, methodName, options) {
   options = extend(DEFAULT_OPTIONS, options)
 
   const middleware = []
@@ -73,16 +73,14 @@ function ospreyMethodHandler (method, path, options, methodName) {
   if (hasRequest && method.request.payloads.length > 0) {
     middleware.push(bodyHandler(
       method.request.payloads, path, methodName, options))
-  } else {
-    if (options.discardUnknownBodies) {
-      debug(
-        '%s %s: Discarding body request stream: ' +
-        'Use "*/*" or set "body" to accept content types',
-        methodName,
-        path
-      )
-      middleware.push(discardBody)
-    }
+  } else if (options.discardUnknownBodies) {
+    debug(
+      '%s %s: Discarding body request stream: ' +
+      'Use "*/*" or set "body" to accept content types',
+      methodName,
+      path
+    )
+    middleware.push(discardBody)
   }
 
   if (method && method.responses.length > 0) {
@@ -91,17 +89,15 @@ function ospreyMethodHandler (method, path, options, methodName) {
 
   if (hasRequest && method.request.queryParameters.length > 0) {
     middleware.push(queryHandler(method.request.queryParameters, options))
-  } else {
-    if (options.discardUnknownQueryParameters) {
-      debug(
-        '%s %s: Discarding all query parameters: ' +
-        'Define "queryParameters" to receive parameters',
-        methodName,
-        path
-      )
+  } else if (options.discardUnknownQueryParameters) {
+    debug(
+      '%s %s: Discarding all query parameters: ' +
+      'Define "queryParameters" to receive parameters',
+      methodName,
+      path
+    )
 
-      middleware.push(ospreyFastQuery)
-    }
+    middleware.push(ospreyFastQuery)
   }
   return compose(middleware)
 }
@@ -169,23 +165,28 @@ function queryHandler (queryParameters, options) {
   return async function ospreyQuery (req, res, next) {
     const reqUrl = parseurl(req)
     let query = parseQuerystring(reqUrl.query)
+    query = Object.fromEntries(
+      Object.entries(query)
+        .map(([name, val]) => [name, tryParse(val)]))
+
+    query = Object.fromEntries(
+      Object.entries(query)
+        .filter(([name, val]) => !!parameters[name]))
 
     if (options.discardUnknownQueryParameters) {
-      query = Object.fromEntries(
-        Object.entries(query)
-          .filter(([name, val]) => !!parameters[name])
-      )
       const qs = querystring.stringify(query)
       req.url = reqUrl.pathname + (qs ? `?${qs}` : '')
+      req.query = query
+    } else {
+      req.query = extend(req.query, query)
     }
-    req.query = query
 
     const reports = await Promise.all(
-      Object.entries(query || {}).map(([name, value]) => {
+      Object.entries(req.query || {}).map(([name, value]) => {
         const param = parameters[name]
         return (param && param.schema)
-          ? validateWithExtras(param, value)
-          : Promise.resolve()
+          ? validateWithExtras(param, tryStringify(value))
+          : Promise.resolve({ conforms: true })
       })
     )
     const failedReport = reports.filter(r => !r.conforms).pop()
@@ -234,7 +235,7 @@ function headerHandler (headers = [], options) {
         const param = params[name]
         return param
           ? validateWithExtras(param, value)
-          : Promise.resolve()
+          : Promise.resolve({ conforms: true })
       })
     )
     const failedReport = reports.filter(r => !r.conforms).pop()
@@ -702,6 +703,18 @@ function validateWithExtras (field, value) {
       }
       return report
     })
+}
+
+function tryParse (val) {
+  try {
+    return JSON.parse(val)
+  } catch (e) {
+    return val
+  }
+}
+
+function tryStringify (val) {
+  return typeof val === 'string' ? val : JSON.stringify(val)
 }
 
 module.exports = ospreyMethodHandler
