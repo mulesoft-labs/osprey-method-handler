@@ -505,7 +505,7 @@ describe('osprey method handler', function () {
         })
     })
 
-    it.skip('should support unused repeat parameters (mulesoft/osprey#84)', function () {
+    it.skip('should support unused repeat parameters (RAML 0.8, mulesoft/osprey#84)', function () {
       const app = ospreyRouter()
       const method = new wp.model.domain.Operation()
         .withMethod('GET')
@@ -553,9 +553,7 @@ describe('osprey method handler', function () {
     describe('general', function () {
       it('should parse content-type from header and validate', function () {
         const app = ospreyRouter()
-        const schema = new wp.model.domain.ScalarShape()
-          .withName('schema')
-          .withDataType('http://www.w3.org/2001/XMLSchema#string')
+        const schema = new wp.model.domain.NodeShape()
         const method = makeRequestMethod('application/json', schema)
 
         const middleware = ospreyMethodHandler(method, '/', 'POST')
@@ -607,12 +605,12 @@ describe('osprey method handler', function () {
           expect(err.ramlValidation).to.equal(true)
           expect(err.requestErrors[0]).to.deep.equal(
             {
-              type: 'json',
+              type: 'body',
               keyword: 'required',
-              dataPath: 'foo',
-              message: 'invalid json (required, true)',
-              schema: true,
-              data: undefined
+              dataPath: null,
+              data: '{}',
+              level: 'Violation',
+              message: "invalid body: should have required property 'foo' (required)"
             }
           )
           return next(err)
@@ -643,13 +641,14 @@ describe('osprey method handler', function () {
           expect(err.ramlValidation).to.equal(true)
           expect(err.requestErrors[0]).to.deep.equal(
             {
-              type: 'json',
+              type: 'body',
               keyword: 'minProperties',
-              dataPath: undefined,
-              message: 'invalid json (minProperties, 2)',
-              schema: 2,
-              data: undefined
+              dataPath: null,
+              data: '{"foo":"bar"}',
+              level: 'Violation',
+              message: 'invalid body: should NOT have less than 2 properties (minProperties)'
             }
+
           )
           return next(err)
         })
@@ -681,12 +680,12 @@ describe('osprey method handler', function () {
           expect(err.ramlValidation).to.equal(true)
           expect(err.requestErrors[0]).to.deep.equal(
             {
-              type: 'json',
+              type: 'body',
               keyword: 'maxProperties',
-              dataPath: undefined,
-              message: 'invalid json (maxProperties, 1)',
-              schema: 1,
-              data: undefined
+              dataPath: null,
+              data: '{"foo":"bar","baz":"qux"}',
+              level: 'Violation',
+              message: 'invalid body: should NOT have more than 1 properties (maxProperties)'
             }
           )
           return next(err)
@@ -719,12 +718,12 @@ describe('osprey method handler', function () {
             expect(err.ramlValidation).to.equal(true)
             expect(err.requestErrors[0]).to.deep.equal(
               {
-                type: 'json',
-                keyword: 'additionalProperties',
-                dataPath: undefined,
-                message: 'invalid json (additionalProperties, false)',
-                schema: false,
-                data: undefined
+                type: 'body',
+                keyword: 'maxProperties',
+                dataPath: null,
+                data: '{"foo":"bar","baz":"qux"}',
+                level: 'Violation',
+                message: 'invalid body: should NOT have more than 1 properties (maxProperties)'
               }
             )
             return next(err)
@@ -751,6 +750,7 @@ describe('osprey method handler', function () {
         const dt = makeRamlDt()
           .withMaxProperties(1)
           .withMinProperties(1)
+          .withClosed(true)
         dt.additionalPropertiesSchema = null
         const method = makeRequestMethod('application/json', dt)
 
@@ -815,7 +815,6 @@ describe('osprey method handler', function () {
           const dt = new wp.model.domain.ArrayShape()
             .withItems(
               new wp.model.domain.ScalarShape()
-                .withName('foo')
                 .withDataType('http://www.w3.org/2001/XMLSchema#string')
             )
           const method = makeRequestMethod('application/json', dt)
@@ -1090,13 +1089,12 @@ describe('osprey method handler', function () {
             {
               type: 'form',
               keyword: 'type',
-              dataPath: 'a',
-              message: 'invalid form (type, boolean)',
-              schema: 'boolean',
-              data: ['true', '123']
+              dataPath: null,
+              data: '{"a":["true","123"]}',
+              level: 'Violation',
+              message: 'invalid form: a should be boolean (type)'
             }
           )
-
           return next(err)
         })
 

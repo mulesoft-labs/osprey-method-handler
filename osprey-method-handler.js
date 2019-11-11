@@ -326,7 +326,10 @@ function jsonBodyHandler (body, path, methodName, options) {
   // In case it's not specified, its type would be AnyShape, but
   // we can't check instance against it because it's a parent type
   // of multiple other types.
-  if (!(body.schema instanceof wp.model.domain.NodeShape)) {
+  const sclSchema = body.schema instanceof wp.model.domain.ScalarShape
+  const objSchema = body.schema instanceof wp.model.domain.NodeShape
+  const arrSchema = body.schema instanceof wp.model.domain.ArrayShape
+  if (!sclSchema && !objSchema && !arrSchema) {
     return compose(middleware)
   }
 
@@ -338,6 +341,10 @@ function jsonBodyHandler (body, path, methodName, options) {
     }
     return next()
   })
+
+  if (!objSchema) {
+    return compose(middleware)
+  }
 
   // Validate minProperties
   const minProperties = body.schema.minProperties.option
