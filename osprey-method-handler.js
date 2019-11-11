@@ -165,10 +165,7 @@ function queryHandler (queryParameters, options) {
   return async function ospreyQuery (req, res, next) {
     const reqUrl = parseurl(req)
     let query = parseQuerystring(reqUrl.query)
-    query = Object.fromEntries(
-      Object.entries(query)
-        .map(([name, val]) => [name, tryParse(val)]))
-
+    query = tryParseObjectValues(query)
     query = Object.fromEntries(
       Object.entries(query)
         .filter(([name, val]) => !!parameters[name]))
@@ -420,6 +417,7 @@ function urlencodedBodyHandler (body, path, methodName, options) {
 
   if (body.schema) {
     middleware.push(async function ospreyUrlencodedBodyValidator (req, res, next) {
+      req.body = tryParseObjectValues(req.body)
       const report = await validateWithExtras(body, JSON.stringify(req.body))
       if (!report.conforms) {
         return next(createValidationError(
@@ -710,6 +708,12 @@ function validateWithExtras (field, value) {
       }
       return report
     })
+}
+
+function tryParseObjectValues (obj) {
+  return Object.fromEntries(
+    Object.entries(obj)
+      .map(([name, val]) => [name, tryParse(val)]))
 }
 
 function tryParse (val) {

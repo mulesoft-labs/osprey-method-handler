@@ -1160,12 +1160,16 @@ describe('osprey method handler', function () {
         const dt = new wp.model.domain.NodeShape()
           .withName('schema')
           .withProperties([
-            new wp.model.domain.ArrayShape()
+            new wp.model.domain.PropertyShape()
               .withName('a')
-              .withItems(
-                new wp.model.domain.ScalarShape()
+              .withRange(
+                new wp.model.domain.ArrayShape()
                   .withName('a')
-                  .withDataType('http://www.w3.org/2001/XMLSchema#boolean')
+                  .withItems(
+                    new wp.model.domain.ScalarShape()
+                      .withName('a')
+                      .withDataType('http://www.w3.org/2001/XMLSchema#boolean')
+                  )
               )
           ])
         const method = makeRequestMethod('application/x-www-form-urlencoded', dt)
