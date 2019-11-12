@@ -539,11 +539,11 @@ function xmlBodyValidationHandler (str, path, methodName) {
  */
 function formDataBodyHandler (body, path, methodName, options) {
   const Busboy = require('busboy')
-  const params = {}
-  const hasProperties = body.schema && body.schema.properties
+  const props = {}
+  const hasProperties = body.schema && body.schema.properties.length > 0
   if (hasProperties) {
     body.schema.properties.forEach(prop => {
-      params[prop.name.value()] = prop
+      props[prop.name.value()] = prop
     })
   }
 
@@ -563,27 +563,44 @@ function formDataBodyHandler (body, path, methodName, options) {
       const close = type === 'field' ? noop : function () {
         value.resume()
       }
-
       if (type === 'field' || type === 'file') {
-        if (!params[name]) {
+        if (!props[name]) {
           return close()
         }
-        bodyData[name] = value
+        // TODO: How to get 'repeat: true' RAML 0.8 value?
+        // https://github.com/aml-org/amf/issues/566#issuecomment-552784063
+        const repeatProperty = props[name].maxCount > 1
+        if (bodyData[name] && repeatProperty) {
+          const repeatErr = createValidationError(formatRamlErrors({
+            valid: false,
+            rule: 'repeat',
+            value: value,
+            key: name,
+            attr: false
+          }, 'form'))
+          Busboy.prototype.emit.call(this, 'error', repeatErr)
+          return
+        }
+        bodyData[name] = value.toString ? value.toString() : value
       } else if (type === 'finish') {
         // Finish emits twice, but is actually done the second time.
         if (!this._done) {
           return Busboy.prototype.emit.call(this, 'finish')
         }
-
         const report = await validateWithExtras(body, JSON.stringify(bodyData))
         if (!report.conforms) {
-          return next(createValidationError(
-            formatRamlValidationReport(report, 'form')))
+          Busboy.prototype.emit.call(
+            this,
+            'error',
+            createValidationError(formatRamlValidationReport(report, 'form'))
+          )
+          return
         }
       }
 
       return Busboy.prototype.emit.apply(this, arguments)
     }
+    return next()
   }
 }
 
