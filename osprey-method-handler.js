@@ -567,21 +567,15 @@ function formDataBodyHandler (body, path, methodName, options) {
         if (!props[name]) {
           return close()
         }
-        // TODO: How to get 'repeat: true' RAML 0.8 value?
-        // https://github.com/aml-org/amf/issues/566#issuecomment-552784063
-        const repeatProperty = props[name].maxCount > 1
-        if (bodyData[name] && repeatProperty) {
-          const repeatErr = createValidationError(formatRamlErrors({
-            valid: false,
-            rule: 'repeat',
-            value: value,
-            key: name,
-            attr: false
-          }, 'form'))
-          Busboy.prototype.emit.call(this, 'error', repeatErr)
-          return
+
+        let val = value.readable !== undefined ? value.toString() : value
+        let existing = bodyData[name]
+        // Collect arrays
+        if (existing) {
+          existing = Array.isArray(existing) ? existing : [existing]
+          val = existing.concat(val)
         }
-        bodyData[name] = value.toString ? value.toString() : value
+        bodyData[name] = val
       } else if (type === 'finish') {
         // Finish emits twice, but is actually done the second time.
         if (!this._done) {
