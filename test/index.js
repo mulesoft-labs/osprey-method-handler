@@ -224,7 +224,7 @@ describe('osprey method handler', function () {
               .withSchema(
                 new wp.model.domain.ScalarShape()
                   .withName('id')
-                  .withDataType('http://www.w3.org/2001/XMLSchema#number')
+                  .withDataType('http://a.ml/vocabularies/shapes#number')
               )
           ])
         )
@@ -1060,7 +1060,7 @@ describe('osprey method handler', function () {
               .withRange(
                 new wp.model.domain.ScalarShape()
                   .withName('id')
-                  .withDataType('http://www.w3.org/2001/XMLSchema#number')
+                  .withDataType('http://a.ml/vocabularies/shapes#number')
               )
           ])
         const method = makeRequestMethod('application/x-www-form-urlencoded', dt)
