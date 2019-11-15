@@ -626,7 +626,7 @@ function discardBody (req, res, next) {
   debug('%s %s: Discarding request stream', req.method, req.url)
 
   // TODO(blakeembrey): Make sure this doesn't break in future node versions.
-  if (req._readableState.ended) {
+  if (req.readableEnded || req._readableState.ended) {
     return next()
   }
 
