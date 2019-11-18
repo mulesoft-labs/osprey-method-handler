@@ -8,6 +8,8 @@ const standardHeaders = require('standard-headers')
 const compose = require('compose-middleware').compose
 const debug = require('debug')('osprey-method-handler')
 const wp = require('webapi-parser')
+const ramlSanitize = require('raml-sanitize')
+const lowercaseKeys = require('lowercase-keys')
 
 const DEFAULT_OPTIONS = {
   discardUnknownBodies: true,
@@ -157,15 +159,15 @@ function acceptsHandler (responses, path, methodName) {
  * @return {Function}
  */
 function queryHandler (queryParameters, options) {
+  const sanitize = ramlSanitize(queryParameters)
   const parameters = {}
   queryParameters.forEach(qp => {
-    parameters[qp.name.value()] = qp
+    parameters[qp.name.value().toLowerCase()] = qp
   })
 
   return async function ospreyQuery (req, res, next) {
     const reqUrl = parseurl(req)
-    let query = parseQuerystring(reqUrl.query)
-    query = tryParseObjectValues(query)
+    let query = sanitize(parseQuerystring(reqUrl.query))
     query = Object.fromEntries(
       Object.entries(query)
         .filter(([name, val]) => !!parameters[name]))
@@ -219,8 +221,11 @@ function headerHandler (headers = [], options) {
     params[header.name.value()] = header
   })
   params = extend(DEFAULT_REQUEST_HEADER_PARAMS, params)
+  params = lowercaseKeys(params)
+  const sanitize = ramlSanitize(Object.values(params))
 
   return async function ospreyMethodHeader (req, res, next) {
+    req.headers = lowercaseKeys(req.headers)
     // Unsets invalid headers. Does not touch `rawHeaders`.
     if (options.discardUnknownHeaders) {
       const definedHeaders = Object.entries(req.headers)
@@ -240,6 +245,7 @@ function headerHandler (headers = [], options) {
       return next(createValidationError(
         formatRamlValidationReport(failedReport, 'header')))
     }
+    req.header = sanitize(req.headers)
     return next()
   }
 }
@@ -415,9 +421,11 @@ function urlencodedBodyHandler (body, path, methodName, options) {
   })
   const middleware = [urlencodedBodyParser]
 
-  if (body.schema) {
+  const hasProperties = body.schema && body.schema.properties.length > 0
+  if (hasProperties) {
+    const sanitize = ramlSanitize(body.schema.properties)
     middleware.push(async function ospreyUrlencodedBodyValidator (req, res, next) {
-      req.body = tryParseObjectValues(req.body)
+      req.body = sanitize(req.body)
       const report = await validateWithExtras(body, JSON.stringify(req.body))
       if (!report.conforms) {
         return next(createValidationError(
@@ -540,10 +548,13 @@ function xmlBodyValidationHandler (str, path, methodName) {
 function formDataBodyHandler (body, path, methodName, options) {
   const Busboy = require('busboy')
   const props = {}
+  const sanitizers = {}
   const hasProperties = body.schema && body.schema.properties.length > 0
   if (hasProperties) {
     body.schema.properties.forEach(prop => {
-      props[prop.name.value()] = prop
+      const name = prop.name.value()
+      props[name] = prop
+      sanitizers[name] = ramlSanitize.rule(prop)
     })
   }
 
@@ -568,14 +579,15 @@ function formDataBodyHandler (body, path, methodName, options) {
           return close()
         }
 
-        let val = value.readable !== undefined ? value.toString() : value
+        value = value.readable !== undefined ? value.toString() : value
         let existing = bodyData[name]
         // Collect arrays
         if (existing) {
           existing = Array.isArray(existing) ? existing : [existing]
-          val = existing.concat(val)
+          value = existing.concat(value)
         }
-        bodyData[name] = val
+        value = sanitizers[name] ? sanitizers[name](value) : value
+        bodyData[name] = value
       } else if (type === 'finish') {
         // Finish emits twice, but is actually done the second time.
         if (!this._done) {
@@ -719,20 +731,6 @@ function validateWithExtras (field, value) {
       }
       return report
     })
-}
-
-function tryParseObjectValues (obj) {
-  return Object.fromEntries(
-    Object.entries(obj)
-      .map(([name, val]) => [name, tryParse(val)]))
-}
-
-function tryParse (val) {
-  try {
-    return JSON.parse(val)
-  } catch (e) {
-    return val
-  }
 }
 
 function tryStringify (val) {
