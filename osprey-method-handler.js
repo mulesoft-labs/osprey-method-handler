@@ -51,9 +51,9 @@ const BODY_HANDLERS = [
  * Create a middleware request/response handler.
  *
  * @param  {webapi-parser.Operation} method
- * @param  {String}   path
- * @param  {String}   methodName
- * @param  {Object}   options
+ * @param  {String}                  path
+ * @param  {String}                  methodName
+ * @param  {Object}                  options
  * @return {Function}
  */
 function ospreyMethodHandler (method, path, methodName, options) {
@@ -107,9 +107,9 @@ function ospreyMethodHandler (method, path, methodName, options) {
 /**
  * Create a HTTP accepts handler.
  *
- * @param  {Array<webapi-parser.Response>}   responses
- * @param  {String}   path
- * @param  {String}   methodName
+ * @param  {Array.<webapi-parser.Response>} responses
+ * @param  {String}                         path
+ * @param  {String}                         methodName
  * @return {Function}
  */
 function acceptsHandler (responses, path, methodName) {
@@ -154,8 +154,8 @@ function acceptsHandler (responses, path, methodName) {
 /**
  * Create query string handling middleware.
  *
- * @param  {Array<webapi-parser.Parameter>}   queryParameters
- * @param  {Object}   options
+ * @param  {Array.<webapi-parser.Parameter>} queryParameters
+ * @param  {Object}                          options
  * @return {Function}
  */
 function queryHandler (queryParameters, options) {
@@ -210,8 +210,8 @@ function parseQuerystring (query) {
 /**
  * Create a request header handling middleware.
  *
- * @param  {Array<webapi-parser.Parameter>}   headers
- * @param  {Object}   options
+ * @param  {Array.<webapi-parser.Parameter>} headers
+ * @param  {Object}                          options
  * @return {Function}
  */
 function headerHandler (headers = [], options) {
@@ -253,10 +253,10 @@ function headerHandler (headers = [], options) {
 /**
  * Handle incoming request bodies.
  *
- * @param  {Array<webapi-parser.Payload>} bodies
- * @param  {String}   path
- * @param  {String}   methodName
- * @param  {Object}   options
+ * @param  {Array.<webapi-parser.Payload>} bodies
+ * @param  {String}                        path
+ * @param  {String}                        methodName
+ * @param  {Object}                        options
  * @return {Function}
  */
 function bodyHandler (bodies, path, methodName, options) {
@@ -310,10 +310,10 @@ function bodyHandler (bodies, path, methodName, options) {
 /**
  * Handle JSON requests.
  *
- * @param  {webapi-parser.Payload}   body
- * @param  {String}   path
- * @param  {String}   methodName
- * @param  {Object}   options
+ * @param  {webapi-parser.Payload} body
+ * @param  {String}                path
+ * @param  {String}                methodName
+ * @param  {Object}                options
  * @return {Function}
  */
 function jsonBodyHandler (body, path, methodName, options) {
@@ -406,10 +406,10 @@ function jsonBodyHandler (body, path, methodName, options) {
 /**
  * Handle url encoded form requests.
  *
- * @param  {webapi-parser.Payload}   body
- * @param  {String}   path
- * @param  {String}   methodName
- * @param  {Object}   options
+ * @param  {webapi-parser.Payload} body
+ * @param  {String}                path
+ * @param  {String}                methodName
+ * @param  {Object}                options
  * @return {Function}
  */
 function urlencodedBodyHandler (body, path, methodName, options) {
@@ -441,10 +441,10 @@ function urlencodedBodyHandler (body, path, methodName, options) {
 /**
  * Handle XML requests.
  *
- * @param  {webapi-parser.Payload}   body
- * @param  {String}   path
- * @param  {String}   methodName
- * @param  {Object}   options
+ * @param  {webapi-parser.Payload} body
+ * @param  {String}                path
+ * @param  {String}                methodName
+ * @param  {Object}                options
  * @return {Function}
  */
 function xmlBodyHandler (body, path, methodName, options) {
@@ -539,10 +539,10 @@ function xmlBodyValidationHandler (str, path, methodName) {
 /**
  * Handle and validate form data requests.
  *
- * @param  {webapi-parser.Payload}   body
- * @param  {String}   path
- * @param  {String}   methodName
- * @param  {Object}   options
+ * @param  {webapi-parser.Payload} body
+ * @param  {String}                path
+ * @param  {String}                methodName
+ * @param  {Object}                options
  * @return {Function}
  */
 function formDataBodyHandler (body, path, methodName, options) {
@@ -720,7 +720,7 @@ function formatXmlErrors (errors) {
  *
  * @param  {any} field  Anything having field.schema.validate() API.
  * @param  {any} value  Anything to be validated against schema.
- * @return {Promise<webapi-parser.ValidationReport>}
+ * @return {Promise.<webapi-parser.ValidationReport>}
  */
 function validateWithExtras (field, value) {
   return field.schema.validate(value)
