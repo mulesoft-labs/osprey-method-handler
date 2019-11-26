@@ -133,7 +133,7 @@ describe('osprey method handler', function () {
               .withSchema(
                 new wp.model.domain.ScalarShape()
                   .withName('schema')
-                  .withDataType('http://www.w3.org/2001/XMLSchema#datetime')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#dateTime')
                   .withFormat('rfc2616')
               )
           ])

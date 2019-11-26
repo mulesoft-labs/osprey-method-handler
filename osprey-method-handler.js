@@ -8,7 +8,7 @@ const standardHeaders = require('standard-headers')
 const compose = require('compose-middleware').compose
 const debug = require('debug')('osprey-method-handler')
 const wp = require('webapi-parser')
-const ramlSanitize = require('raml-sanitize')
+const ramlSanitize = require('raml-sanitize')()
 const lowercaseKeys = require('lowercase-keys')
 
 const DEFAULT_OPTIONS = {
@@ -32,7 +32,7 @@ standardHeaders.request.forEach(function (header) {
   DEFAULT_REQUEST_HEADER_PARAMS[header] = new wp.model.domain.Parameter()
     .withName(header)
     .withRequired(false)
-    .withSchema(new wp.model.domain.AnyShape().withName('schema'))
+    .withSchema(new wp.model.domain.AnyShape().withName(header))
 })
 
 /**
