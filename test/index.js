@@ -1028,7 +1028,6 @@ describe('osprey method handler', function () {
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.equal(true)
-          console.log(err.requestErrors[0])
           expect(err.requestErrors[0]).to.deep.equal(
             {
               type: 'form',

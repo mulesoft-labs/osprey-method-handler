@@ -579,7 +579,6 @@ function formDataBodyHandler (body, path, methodName, options) {
         if (!props[name]) {
           return close()
         }
-
         value = value.readable !== undefined ? value.toString() : value
         let existing = bodyData[name]
         // Collect arrays
@@ -587,7 +586,9 @@ function formDataBodyHandler (body, path, methodName, options) {
           existing = Array.isArray(existing) ? existing : [existing]
           value = existing.concat(value)
         }
-        value = sanitizers[name] ? sanitizers[name](value) : value
+        if (type === 'field') {
+          value = sanitizers[name] ? sanitizers[name](value) : value
+        }
         bodyData[name] = value
       } else if (type === 'finish') {
         // Finish emits twice, but is actually done the second time.
