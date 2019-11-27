@@ -425,12 +425,13 @@ function urlencodedBodyHandler (body, path, methodName, options) {
   if (hasProperties) {
     const sanitize = ramlSanitize(body.schema.properties)
     middleware.push(async function ospreyUrlencodedBodyValidator (req, res, next) {
-      req.body = sanitize(req.body)
-      const report = await validateWithExtras(body, JSON.stringify(req.body))
+      const sanBody = sanitize(req.body)
+      const report = await validateWithExtras(body, JSON.stringify(sanBody))
       if (!report.conforms) {
         return next(createValidationError(
           formatRamlValidationReport(report, 'form')))
       }
+      req.body = sanBody
       return next()
     })
   }

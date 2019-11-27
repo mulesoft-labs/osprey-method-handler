@@ -1012,9 +1012,13 @@ describe('osprey method handler', function () {
             new wp.model.domain.PropertyShape()
               .withName('a')
               .withRange(
-                new wp.model.domain.ScalarShape()
+                new wp.model.domain.ArrayShape()
                   .withName('a')
-                  .withDataType('http://www.w3.org/2001/XMLSchema#boolean')
+                  .withItems(
+                    new wp.model.domain.ScalarShape()
+                      .withName('a')
+                      .withDataType('http://a.ml/vocabularies/shapes#number')
+                  )
               )
           ])
         const method = makeRequestMethod('application/x-www-form-urlencoded', dt)
@@ -1024,14 +1028,15 @@ describe('osprey method handler', function () {
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.equal(true)
+          console.log(err.requestErrors[0])
           expect(err.requestErrors[0]).to.deep.equal(
             {
               type: 'form',
               keyword: 'type',
               dataPath: null,
-              data: '{"a":["true","123"]}',
+              data: '{"a":["qwe",123]}',
               level: 'Violation',
-              message: 'invalid form: a should be boolean (type)'
+              message: 'invalid form: a[0] should be number (type)'
             }
           )
           return next(err)
@@ -1039,7 +1044,7 @@ describe('osprey method handler', function () {
 
         return makeFetcher(app).fetch('/', {
           method: 'POST',
-          body: 'a=true&a=123',
+          body: 'a=qwe&a=123',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
           }
