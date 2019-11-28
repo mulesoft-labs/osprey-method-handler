@@ -575,11 +575,17 @@ function formDataBodyHandler (body, path, methodName, options) {
       const close = type === 'field' ? noop : function () {
         value.resume()
       }
-      if (type === 'field' || type === 'file') {
-        if (!props[name]) {
-          return close()
+      if ((type === 'file' || type === 'field') && !props[name]) {
+        return close()
+      }
+      if (type === 'file') {
+        if (!bodyData[name]) {
+          bodyData[name] = ''
         }
-        value = value.readable !== undefined ? value.toString() : value
+        value.on('data', function (data) {
+          bodyData[name] += data.toString()
+        })
+      } else if (type === 'field') {
         let existing = bodyData[name]
         // Collect arrays
         if (existing) {
