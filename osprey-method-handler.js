@@ -20,20 +20,19 @@ const DEFAULT_OPTIONS = {
   parameterLimit: 1000
 }
 
-/**
- * Get all default headers.
- *
- * @type {Object}
- */
-const DEFAULT_REQUEST_HEADER_PARAMS = {}
+async function makeDefaultRequestHeadersParams () {
+  await wp.WebApiParser.init()
+  const params = {}
+  standardHeaders.request.forEach(function (header) {
+    params[header] = new wp.model.domain.Parameter()
+      .withName(header)
+      .withRequired(false)
+      .withSchema(new wp.model.domain.AnyShape().withName(header))
+  })
+  return params
+}
 
 // Fill header params with non-required parameters.
-standardHeaders.request.forEach(function (header) {
-  DEFAULT_REQUEST_HEADER_PARAMS[header] = new wp.model.domain.Parameter()
-    .withName(header)
-    .withRequired(false)
-    .withSchema(new wp.model.domain.AnyShape().withName(header))
-})
 
 /**
  * Application body parsers and validators.
@@ -220,11 +219,12 @@ function headerHandler (headers = [], options) {
     header.withName(header.name.value().toLowerCase())
     params[header.name.value()] = header
   })
-  params = extend(DEFAULT_REQUEST_HEADER_PARAMS, params)
-  params = lowercaseKeys(params)
-  const sanitize = ramlSanitize(Object.values(params))
 
   return async function ospreyMethodHeader (req, res, next) {
+    const defaultParams = await makeDefaultRequestHeadersParams()
+    params = extend(defaultParams, params)
+    params = lowercaseKeys(params)
+    const sanitize = ramlSanitize(Object.values(params))
     req.headers = lowercaseKeys(req.headers)
     // Unsets invalid headers. Does not touch `rawHeaders`.
     if (options.discardUnknownHeaders) {
