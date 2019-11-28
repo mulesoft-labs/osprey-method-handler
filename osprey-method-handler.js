@@ -586,14 +586,12 @@ function formDataBodyHandler (body, path, methodName, options) {
           bodyData[name] += data.toString()
         })
       } else if (type === 'field') {
+        value = sanitizers[name] ? sanitizers[name](value) : value
         let existing = bodyData[name]
         // Collect arrays
         if (existing) {
           existing = Array.isArray(existing) ? existing : [existing]
           value = existing.concat(value)
-        }
-        if (type === 'field') {
-          value = sanitizers[name] ? sanitizers[name](value) : value
         }
         bodyData[name] = value
       } else if (type === 'finish') {
