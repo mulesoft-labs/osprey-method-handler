@@ -43,8 +43,8 @@
     "mocha": "^6.2.2",
     "nyc": "^14.1.1",
     "osprey-router": "^0.6.2",
-    "popsicle": "12.0.4",
-    "popsicle-server": "^2.0.0",
+    "popsicle": "^12.0.5",
+    "popsicle-server": "^3.0.0",
     "pre-commit": "^1.0.5",
     "sinon": "^7.5.0",
     "standard": "^14.3.1"

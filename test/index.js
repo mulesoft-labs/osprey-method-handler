@@ -18,7 +18,7 @@ function makeFetcher (app) {
   const compose = require('throwback').compose
   const Request = require('servie').Request
   const popsicle = require('popsicle')
-  const popsicleServer = require('popsicle-server')
+  const popsicleServer = require('popsicle-server').server
   const finalhandler = require('finalhandler')
 
   // Set response text to "body" property to mimic popsicle v10
