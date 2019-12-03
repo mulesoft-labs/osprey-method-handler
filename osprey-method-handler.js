@@ -179,18 +179,11 @@ function queryHandler (queryParameters, options) {
       req.query = extend(req.query, query)
     }
 
-    const reports = await Promise.all(
-      Object.entries(req.query || {}).map(([name, value]) => {
-        const param = parameters[name]
-        return (param && param.schema)
-          ? validateWithExtras(param, tryStringify(value))
-          : Promise.resolve({ conforms: true })
-      })
-    )
-    const failedReport = reports.filter(r => !r.conforms).pop()
-    if (failedReport) {
+    const schema = await nodeShapeFromParams(queryParameters)
+    const report = await validateWithExtras(schema, JSON.stringify(query))
+    if (!report.conforms) {
       return next(createValidationError(
-        formatRamlValidationReport(failedReport, 'query')))
+        formatRamlValidationReport(report, 'query')))
     }
 
     return next()
@@ -232,19 +225,14 @@ function headerHandler (headers = [], options) {
         .filter(([name, val]) => !!params[name])
       req.headers = Object.fromEntries(definedHeaders)
     }
-    const reports = await Promise.all(
-      Object.entries(req.headers || {}).map(([name, value]) => {
-        const param = params[name]
-        return param
-          ? validateWithExtras(param, value)
-          : Promise.resolve({ conforms: true })
-      })
-    )
-    const failedReport = reports.filter(r => !r.conforms).pop()
-    if (failedReport) {
+
+    const schema = await nodeShapeFromParams(Object.values(params))
+    const report = await validateWithExtras(schema, JSON.stringify(req.headers))
+    if (!report.conforms) {
       return next(createValidationError(
-        formatRamlValidationReport(failedReport, 'header')))
+        formatRamlValidationReport(report, 'header')))
     }
+
     req.header = sanitize(req.headers)
     return next()
   }
@@ -341,7 +329,8 @@ function jsonBodyHandler (body, path, methodName, options) {
   }
 
   middleware.push(async function ospreyJsonBodyValidator (req, res, next) {
-    const report = await validateWithExtras(body, JSON.stringify(req.body))
+    const report = await validateWithExtras(
+      body.schema, JSON.stringify(req.body))
     if (!report.conforms) {
       return next(createValidationError(
         formatRamlValidationReport(report, 'body')))
@@ -430,7 +419,8 @@ function urlencodedBodyHandler (body, path, methodName, options) {
     const sanitize = ramlSanitize(body.schema.properties)
     middleware.push(async function ospreyUrlencodedBodyValidator (req, res, next) {
       const sanBody = sanitize(req.body)
-      const report = await validateWithExtras(body, JSON.stringify(sanBody))
+      const report = await validateWithExtras(
+        body.schema, JSON.stringify(sanBody))
       if (!report.conforms) {
         return next(createValidationError(
           formatRamlValidationReport(report, 'form')))
@@ -606,7 +596,7 @@ function formDataBodyHandler (body, path, methodName, options) {
         if (!this._done) {
           return Busboy.prototype.emit.call(this, 'finish')
         }
-        const report = await validateWithExtras(body, JSON.stringify(bodyData))
+        const report = await validateWithExtras(body.schema, JSON.stringify(bodyData))
         if (!report.conforms) {
           Busboy.prototype.emit.call(
             this,
@@ -698,7 +688,6 @@ function formatRamlValidationReport (report, type) {
     return {
       type: type,
       keyword: result.source.keyword,
-      dataPath: report.extras.dataPath,
       data: report.extras.data,
       level: result.level,
       message: `invalid ${type}: ${result.message} (${result.source.keyword})`
@@ -731,23 +720,35 @@ function formatXmlErrors (errors) {
 /**
  * Validates value agains fiels schema adding extra info.
  *
- * @param  {any} field  Anything having field.schema.validate() API.
+ * @param  {webapi-parser.Shape} schema  Anything having validate() method.
  * @param  {any} value  Anything to be validated against schema.
  * @return {Promise.<webapi-parser.ValidationReport>}
  */
-function validateWithExtras (field, value) {
-  return field.schema.validate(value)
+function validateWithExtras (schema, value) {
+  return schema.validate(value)
     .then(report => {
-      report.extras = {
-        dataPath: field.name.value(),
-        data: value
-      }
+      report.extras = { data: value }
       return report
     })
 }
 
-function tryStringify (val) {
-  return typeof val === 'string' ? val : JSON.stringify(val)
+/**
+ * Creates NodeShape from an array of Parameter-s.
+ *
+ * @param  {Array.<webapi-parser.Parameter>} params
+ * @return {webapi-parser.NodeShape}
+ */
+async function nodeShapeFromParams (params) {
+  await wp.WebApiParser.init()
+  const properties = params.map(param => {
+    return new wp.model.domain.PropertyShape()
+      .withMinCount(param.required.option ? 1 : 0)
+      .withName(param.name.value())
+      .withRange(param.schema)
+  })
+  return new wp.model.domain.NodeShape()
+    .withName('schema')
+    .withProperties(properties)
 }
 
 module.exports = ospreyMethodHandler

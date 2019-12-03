@@ -98,13 +98,11 @@ describe('osprey method handler', function () {
 
       app.use(function (err, req, res, next) {
         expect(err.ramlValidation).to.equal(true)
-        expect(err.requestErrors[0]).to.deep.equal({
+        expect(err.requestErrors[0]).to.include({
           type: 'header',
           keyword: 'type',
-          dataPath: 'x-header',
-          data: 'abc',
           level: 'Violation',
-          message: 'invalid header: should be integer (type)'
+          message: "invalid header: ['x-header'] should be integer (type)"
         })
 
         return next(err)
@@ -161,6 +159,47 @@ describe('osprey method handler', function () {
   })
 
   describe('query parameters', function () {
+    it('should reject on missing required query parameters', function () {
+      const app = ospreyRouter()
+      const method = new wp.model.domain.Operation()
+        .withMethod('GET')
+        .withRequest(
+          new wp.model.domain.Request().withQueryParameters([
+            new wp.model.domain.Parameter()
+              .withName('a')
+              .withRequired(true)
+              .withSchema(
+                new wp.model.domain.ScalarShape()
+                  .withName('schema')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#string')
+              )
+          ])
+        )
+
+      app.get('/', ospreyMethodHandler(method, '/', 'GET'))
+
+      app.use(function (err, req, res, next) {
+        expect(err.ramlValidation).to.equal(true)
+        expect(err.requestErrors[0]).to.deep.equal(
+          {
+            type: 'query',
+            keyword: 'required',
+            data: '{}',
+            level: 'Violation',
+            message: "invalid query: should have required property 'a' (required)"
+          }
+        )
+
+        return next(err)
+      })
+
+      return makeFetcher(app).fetch('/', {
+        method: 'GET'
+      })
+        .then(function (res) {
+          expect(res.status).to.equal(400)
+        })
+    })
     it('should reject invalid query parameters using standard error format', function () {
       const app = ospreyRouter()
       const method = new wp.model.domain.Operation()
@@ -194,10 +233,9 @@ describe('osprey method handler', function () {
           {
             type: 'query',
             keyword: 'type',
-            dataPath: 'b',
-            data: 'value',
+            data: '{"a":"value","b":"value"}',
             level: 'Violation',
-            message: 'invalid query: should be integer (type)'
+            message: 'invalid query: b should be integer (type)'
           }
         )
 
@@ -552,7 +590,6 @@ describe('osprey method handler', function () {
             {
               type: 'body',
               keyword: 'required',
-              dataPath: null,
               data: '{}',
               level: 'Violation',
               message: "invalid body: should have required property 'foo' (required)"
@@ -588,7 +625,6 @@ describe('osprey method handler', function () {
             {
               type: 'body',
               keyword: 'minProperties',
-              dataPath: null,
               data: '{"foo":"bar"}',
               level: 'Violation',
               message: 'invalid body: should NOT have less than 2 properties (minProperties)'
@@ -627,7 +663,6 @@ describe('osprey method handler', function () {
             {
               type: 'body',
               keyword: 'maxProperties',
-              dataPath: null,
               data: '{"foo":"bar","baz":"qux"}',
               level: 'Violation',
               message: 'invalid body: should NOT have more than 1 properties (maxProperties)'
@@ -665,7 +700,6 @@ describe('osprey method handler', function () {
               {
                 type: 'body',
                 keyword: 'additionalProperties',
-                dataPath: null,
                 data: '{"foo":"bar","baz":"qux"}',
                 level: 'Violation',
                 message: 'invalid body: should NOT have additional properties (additionalProperties)'
@@ -1025,7 +1059,6 @@ describe('osprey method handler', function () {
             {
               type: 'form',
               keyword: 'type',
-              dataPath: null,
               data: '{"a":["qwe",123]}',
               level: 'Violation',
               message: 'invalid form: a[0] should be number (type)'
@@ -1150,7 +1183,6 @@ describe('osprey method handler', function () {
             {
               type: 'form',
               keyword: 'pattern',
-              dataPath: null,
               data: '{"username":"123"}',
               level: 'Violation',
               message: 'invalid form: username should match pattern "^[a-zA-Z]\\w*$" (pattern)'
