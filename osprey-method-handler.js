@@ -384,11 +384,11 @@ function jsonBodyHandler (body, path, methodName, options) {
   }
 
   // Validate additionalProperties
-  const additionalProperties = (
+  const allowsAdditionalProperties = (
     !!body.schema.additionalPropertiesSchema ||
-    body.schema.closed.value())
-  const schemaProps = body.schema.properties.map(p => p.name.value())
-  if (!additionalProperties && schemaProps.length > 0) {
+    !body.schema.closed.value())
+  if (!allowsAdditionalProperties) {
+    const schemaProps = body.schema.properties.map(p => p.name.value())
     middleware.push(function additionalPropertiesValidator (req, res, next) {
       const additionalPropertyFound = Object.keys(req.body)
         .some(key => schemaProps.indexOf(key) === -1)
@@ -396,7 +396,7 @@ function jsonBodyHandler (body, path, methodName, options) {
       if (additionalPropertyFound) {
         return next(createValidationError(formatRamlErrors([{
           rule: 'additionalProperties',
-          attr: additionalProperties
+          attr: allowsAdditionalProperties
         }], 'json')))
       }
 

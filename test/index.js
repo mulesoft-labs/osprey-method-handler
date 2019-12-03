@@ -654,7 +654,7 @@ describe('osprey method handler', function () {
         it('should reject additional properties', function () {
           const app = ospreyRouter()
 
-          const dt = makeRamlDt().withMaxProperties(1)
+          const dt = makeRamlDt().withClosed(true)
           dt.additionalPropertiesSchema = null
           const method = makeRequestMethod('application/json', dt)
           app.post('/', ospreyMethodHandler(method))
@@ -664,11 +664,11 @@ describe('osprey method handler', function () {
             expect(err.requestErrors[0]).to.deep.equal(
               {
                 type: 'body',
-                keyword: 'maxProperties',
+                keyword: 'additionalProperties',
                 dataPath: null,
                 data: '{"foo":"bar","baz":"qux"}',
                 level: 'Violation',
-                message: 'invalid body: should NOT have more than 1 properties (maxProperties)'
+                message: 'invalid body: should NOT have additional properties (additionalProperties)'
               }
             )
             return next(err)
@@ -688,39 +688,32 @@ describe('osprey method handler', function () {
               expect(res.status).to.equal(400)
             })
         })
-      })
-      it('should accept valid RAML datatype', function () {
-        const app = ospreyRouter()
+        it('should accept defined properties', function () {
+          const app = ospreyRouter()
 
-        const dt = makeRamlDt()
-          .withMaxProperties(1)
-          .withMinProperties(1)
-          .withClosed(true)
-        dt.additionalPropertiesSchema = null
-        const method = makeRequestMethod('application/json', dt)
-
-        app.post('/', ospreyMethodHandler(method, '/', 'POST'),
-          function (req, res) {
-            expect(req.body).to.deep.equal({ foo: 'bar' })
-            res.end('success')
-          }
-        )
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: JSON.stringify({
-            foo: 'bar'
+          const dt = makeRamlDt().withClosed(true)
+          dt.additionalPropertiesSchema = null
+          const method = makeRequestMethod('application/json', dt)
+          app.post('/', ospreyMethodHandler(method),
+            function (req, res) {
+              expect(req.body).to.deep.equal({ foo: 'bar' })
+              res.end('success')
+            }
+          )
+          return makeFetcher(app).fetch('/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8'
+            },
+            body: JSON.stringify({
+              foo: 'bar'
+            })
           })
+            .then(function (res) {
+              expect(res.status).to.equal(200)
+            })
         })
-          .then(function (res) {
-            expect(res.body).to.equal('success')
-            expect(res.status).to.equal(200)
-          })
       })
-
       it('should accept arrays as root elements', function () {
         const app = ospreyRouter()
 
