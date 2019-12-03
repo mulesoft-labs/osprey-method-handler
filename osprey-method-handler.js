@@ -325,14 +325,18 @@ function jsonBodyHandler (body, path, methodName, options) {
   })
   const middleware = [jsonBodyParser]
 
-  // Check whether body.schema has type specified.
-  // In case it's not specified, its type would be AnyShape, but
-  // we can't check instance against it because it's a parent type
-  // of multiple other types.
-  const sclSchema = body.schema instanceof wp.model.domain.ScalarShape
-  const objSchema = body.schema instanceof wp.model.domain.NodeShape
-  const arrSchema = body.schema instanceof wp.model.domain.ArrayShape
-  if (!sclSchema && !objSchema && !arrSchema) {
+  /*
+    Check whether body.schema has type specified in RAML.
+
+    In case it's not specified, its type would be AnyShape.
+    Type checks are performed by checking type-specific properties
+    instead of using 'instanceof' because of this issue:
+      https://github.com/aml-org/amf/issues/569
+  */
+  const isScalarShape = body.schema.dataType !== undefined
+  const isNodeShape = body.schema.properties !== undefined
+  const isArrayShape = body.schema.items !== undefined
+  if (!isScalarShape && !isNodeShape && !isArrayShape) {
     return compose(middleware)
   }
 
@@ -345,7 +349,7 @@ function jsonBodyHandler (body, path, methodName, options) {
     return next()
   })
 
-  if (!objSchema) {
+  if (!isNodeShape) {
     return compose(middleware)
   }
 
@@ -451,7 +455,10 @@ function urlencodedBodyHandler (body, path, methodName, options) {
 function xmlBodyHandler (body, path, methodName, options) {
   const middleware = [xmlBodyParser(options)]
 
-  if (body.schema instanceof wp.model.domain.SchemaShape) {
+  const isSchemaShape = (
+    body.schema.mediaType !== undefined &&
+    body.schema.raw !== undefined)
+  if (isSchemaShape) {
     middleware.push(xmlBodyValidationHandler(
       body.schema.raw.value(), path, methodName))
   }
