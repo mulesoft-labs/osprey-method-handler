@@ -387,11 +387,11 @@ function jsonBodyHandler (body, path, methodName, options) {
   const additionalProperties = (
     !!body.schema.additionalPropertiesSchema ||
     body.schema.closed.value())
-  if (!additionalProperties) {
-    const schemaProps = body.schema.properties.map(p => p.name.value())
+  const schemaProps = body.schema.properties.map(p => p.name.value())
+  if (!additionalProperties && schemaProps.length > 0) {
     middleware.push(function additionalPropertiesValidator (req, res, next) {
       const additionalPropertyFound = Object.keys(req.body)
-        .some(key => schemaProps.indexOf(key) !== -1)
+        .some(key => schemaProps.indexOf(key) === -1)
 
       if (additionalPropertyFound) {
         return next(createValidationError(formatRamlErrors([{
