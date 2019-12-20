@@ -167,9 +167,13 @@ function queryHandler (queryParameters, options) {
   return async function ospreyQuery (req, res, next) {
     const reqUrl = parseurl(req)
     let query = sanitize(parseQuerystring(reqUrl.query))
-    query = Object.fromEntries(
-      Object.entries(query)
-        .filter(([name, val]) => !!parameters[name]))
+    const definedQuery = {}
+    Object.entries(query).forEach(([name, val]) => {
+      if (parameters[name]) {
+        definedQuery[name] = val
+      }
+    })
+    query = definedQuery
 
     if (options.discardUnknownQueryParameters) {
       const qs = querystring.stringify(query)
@@ -221,9 +225,13 @@ function headerHandler (headers = [], options) {
     req.headers = lowercaseKeys(req.headers)
     // Unsets invalid headers. Does not touch `rawHeaders`.
     if (options.discardUnknownHeaders) {
-      const definedHeaders = Object.entries(req.headers)
-        .filter(([name, val]) => !!params[name])
-      req.headers = Object.fromEntries(definedHeaders)
+      const definedHeaders = {}
+      Object.entries(req.headers).map(([name, val]) => {
+        if (params[name]) {
+          definedHeaders[name] = val
+        }
+      })
+      req.headers = definedHeaders
     }
 
     const schema = await nodeShapeFromParams(Object.values(params))
