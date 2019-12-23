@@ -37,33 +37,25 @@ npm install osprey-method-handler --save
 ## Usage
 
 ```js
-var express = require('express')
-var handler = require('osprey-method-handler')
-var app = express()
+const express = require('express')
+const handler = require('osprey-method-handler')
+const utils = require('./utils')
 
-app.post('/users', handler({
-  headers: {},
-  responses: {
-    '200': {
-      body: {
-        'application/json': {
-          schema: '...',
-          example: '...'
-        }
-      }
-    }
-  },
-  body: {
-    'application/json': {
-      schema: '...'
-    }
+const app = express()
+
+// webapi-parser.Operation
+const methodObj = utils.getMethodObj()
+const options = {}
+
+app.post(
+  '/users',
+  handler(methodObj, '/users', 'POST', options),
+  function (req, res) {
+    res.send('success')
   }
-}, '/users', 'POST', { /* ... */ }), function (req, res) {
-  res.send('success')
-})
+)
 ```
-
-Accepts the RAML schema as the first argument, method and path in subsequent arguments (mostly for debugging) and options as the final argument.
+Accepts [webapi-parser](https://github.com/raml-org/webapi-parser) `Operation` object as first argument, path string as second argument, method name as third and options object as final argument.
 
 **Options**
 
@@ -80,21 +72,7 @@ Accepts the RAML schema as the first argument, method and path in subsequent arg
 
 The library intercepts incoming requests and does validation. It will respond with `400`, `406` or `415` error instances from [http-errors](https://github.com/jshttp/http-errors). Validation errors are attached to `400` instances and noted using `ramlValidation = true` and `requestErrors = []` (an array of errors that were found, compatible with [request-error-handler](https://github.com/mulesoft-labs/node-request-error-handler)).
 
-The errors object format is:
-
-```ts
-interface Error {
-  type: 'json' | 'form' | 'headers' | 'query' | 'xml'
-  message: string
-  keyword: string
-  dataPath: string
-  data: any
-  schema: any
-  meta?: Object
-}
-```
-
-**Please note:** XML validation does not have a way to get the `keyword`, `dataPath`, `data` or `schema`. Instead, it has a `meta` object that contains information from `libxmljs` (`domain`, `code`, `level`, `column`, `line`).
+See [the code](https://github.com/mulesoft-labs/osprey-method-handler/blob/master/osprey-method-handler.js#L675-L727) for a complete list of errors formats.
 
 To render the error messages for your application, look into error handling for Express, Connect, Router or any other middleware error handler. If you want a pre-built error handler, try using [request-error-handler](https://github.com/mulesoft-labs/node-request-error-handler), which provides a pre-defined error formatter.
 
