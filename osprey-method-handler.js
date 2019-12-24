@@ -217,7 +217,7 @@ function headerHandler (headers = [], options) {
   })
 
   const defaultParams = makeDefaultRequestHeadersParams()
-  return async function ospreyMethodHeader (req, res, next) {
+  return async function ospreyHeaderHandler (req, res, next) {
     params = extend(defaultParams, params)
     params = lowercaseKeys(params)
     const sanitize = ramlSanitize(Object.values(params))
