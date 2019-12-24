@@ -163,6 +163,7 @@ function queryHandler (queryParameters, options) {
   queryParameters.forEach(qp => {
     parameters[qp.name.value().toLowerCase()] = qp
   })
+  const schemaProm = nodeShapeFromParams(queryParameters)
 
   return async function ospreyQuery (req, res, next) {
     const reqUrl = parseurl(req)
@@ -183,8 +184,8 @@ function queryHandler (queryParameters, options) {
       req.query = extend(req.query, query)
     }
 
-    const schema = await nodeShapeFromParams(queryParameters)
-    const report = await validateWithExtras(schema, JSON.stringify(query))
+    const report = await validateWithExtras(
+      await schemaProm, JSON.stringify(query))
     if (!report.conforms) {
       return next(createValidationError(
         formatRamlValidationReport(report, 'query')))
@@ -217,9 +218,9 @@ function headerHandler (headers = [], options) {
     params[header.name.value()] = header
   })
 
+  const defaultParams = makeDefaultRequestHeadersParams()
   return async function ospreyMethodHeader (req, res, next) {
-    const defaultParams = await makeDefaultRequestHeadersParams()
-    params = extend(defaultParams, params)
+    params = extend(await defaultParams, params)
     params = lowercaseKeys(params)
     const sanitize = ramlSanitize(Object.values(params))
     req.headers = lowercaseKeys(req.headers)
