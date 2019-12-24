@@ -42,7 +42,7 @@
     "libxmljs": "^0.19.7",
     "mocha": "^6.2.2",
     "nyc": "^14.1.1",
-    "osprey-router": "mulesoft-labs/osprey-router#rework_webapi_parser",
+    "osprey-router": "github:mulesoft-labs/osprey-router#rework_webapi_parser",
     "popsicle": "^12.0.5",
     "popsicle-server": "^3.0.0",
     "pre-commit": "^1.0.5",
