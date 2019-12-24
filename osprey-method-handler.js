@@ -20,14 +20,12 @@ const DEFAULT_OPTIONS = {
   parameterLimit: 1000
 }
 
-async function makeDefaultRequestHeadersParams () {
-  await wp.WebApiParser.init()
+function makeDefaultRequestHeadersParams () {
   const params = {}
   standardHeaders.request.forEach(function (header) {
-    params[header] = new wp.model.domain.Parameter()
-      .withName(header)
-      .withRequired(false)
-      .withSchema(new wp.model.domain.AnyShape().withName(header))
+    params[header] = {
+      name: { value: () => header }
+    }
   })
   return params
 }
@@ -220,7 +218,7 @@ function headerHandler (headers = [], options) {
 
   const defaultParams = makeDefaultRequestHeadersParams()
   return async function ospreyMethodHeader (req, res, next) {
-    params = extend(await defaultParams, params)
+    params = extend(defaultParams, params)
     params = lowercaseKeys(params)
     const sanitize = ramlSanitize(Object.values(params))
     req.headers = lowercaseKeys(req.headers)
@@ -749,7 +747,8 @@ function validateWithExtras (schema, value) {
  */
 async function nodeShapeFromParams (params) {
   await wp.WebApiParser.init()
-  const properties = params.map(param => {
+  const realParams = params.filter(p => p.constructor !== Object)
+  const properties = realParams.map(param => {
     return new wp.model.domain.PropertyShape()
       .withMinCount(param.required.option ? 1 : 0)
       .withName(param.name.value())

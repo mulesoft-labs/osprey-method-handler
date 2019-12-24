@@ -156,6 +156,38 @@ describe('osprey method handler', function () {
           expect(res.status).to.equal(200)
         })
     })
+    it('should sanitize standard headers', function () {
+      const standardHeaders = require('standard-headers')
+      const header1 = standardHeaders.request[0]
+      const header2 = standardHeaders.request[1]
+      const app = ospreyRouter()
+      const method = new wp.model.domain.Operation()
+        .withMethod('GET')
+        .withRequest(new wp.model.domain.Request())
+
+      const middleware = ospreyMethodHandler(method, '/', 'GET')
+      app.get('/', middleware,
+        function (req, res) {
+          expect(req.headers[header1]).to.equal('foobar')
+          expect(req.headers[header2]).to.equal('hello')
+
+          res.end('success')
+        }
+      )
+      const request = {
+        method: 'GET',
+        headers: {
+
+        }
+      }
+      request.headers[header1] = 'foobar'
+      request.headers[header2] = 'hello'
+      return makeFetcher(app).fetch('/', request)
+        .then(function (res) {
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
   })
 
   describe('query parameters', function () {
