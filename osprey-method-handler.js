@@ -159,7 +159,7 @@ function queryHandler (queryParameters, options) {
   const sanitize = ramlSanitize(queryParameters)
   const parameters = {}
   queryParameters.forEach(qp => {
-    parameters[qp.name.value().toLowerCase()] = qp
+    parameters[qp.name.value()] = qp
   })
   const schemaProm = nodeShapeFromParams(queryParameters)
 
@@ -181,7 +181,6 @@ function queryHandler (queryParameters, options) {
     } else {
       req.query = extend(req.query, query)
     }
-
     const report = await validateWithExtras(
       await schemaProm, JSON.stringify(query))
     if (!report.conforms) {
