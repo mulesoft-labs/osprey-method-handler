@@ -215,12 +215,13 @@ function headerHandler (headers = [], options) {
     header.withName(header.name.value().toLowerCase())
     params[header.name.value()] = header
   })
-
   const defaultParams = makeDefaultRequestHeadersParams()
+  params = extend(defaultParams, params)
+  params = lowercaseKeys(params)
+  const sanitize = ramlSanitize(Object.values(params))
+  const schemaProm = nodeShapeFromParams(Object.values(params))
+
   return async function ospreyHeaderHandler (req, res, next) {
-    params = extend(defaultParams, params)
-    params = lowercaseKeys(params)
-    const sanitize = ramlSanitize(Object.values(params))
     req.headers = lowercaseKeys(req.headers)
     // Unsets invalid headers. Does not touch `rawHeaders`.
     if (options.discardUnknownHeaders) {
@@ -233,8 +234,8 @@ function headerHandler (headers = [], options) {
       req.headers = definedHeaders
     }
 
-    const schema = await nodeShapeFromParams(Object.values(params))
-    const report = await validateWithExtras(schema, JSON.stringify(req.headers))
+    const report = await validateWithExtras(
+      await schemaProm, JSON.stringify(req.headers))
     if (!report.conforms) {
       return next(createValidationError(
         formatRamlValidationReport(report, 'header')))
