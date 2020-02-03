@@ -1743,7 +1743,7 @@ describe('osprey method handler', function () {
     it('should reject requests with invalid accept headers', function () {
       const app = ospreyRouter()
       const dt = new wp.model.domain.NilShape()
-      const method = makeResponseMethod('text/html', dt, 200)
+      const method = makeResponseMethod('text/html', dt, '200')
 
       app.get('/', ospreyMethodHandler(method))
 
@@ -1761,7 +1761,7 @@ describe('osprey method handler', function () {
     it('should accept requests with valid accept headers', function () {
       const app = ospreyRouter()
       const dt = new wp.model.domain.NilShape()
-      const method = makeResponseMethod('text/html', dt, 200)
+      const method = makeResponseMethod('text/html', dt, '200')
 
       app.get('/', ospreyMethodHandler(method), function (req, res) {
         expect(req.headers.accept).to.equal('application/json, text/html')
@@ -1784,7 +1784,7 @@ describe('osprey method handler', function () {
     it('should accept anything without response types', function () {
       const app = ospreyRouter()
       const dt = new wp.model.domain.NodeShape()
-      const method = makeResponseMethod('text/html', dt, 200)
+      const method = makeResponseMethod('text/html', dt, '200')
       method.responses[0].withPayloads([])
       app.get('/', ospreyMethodHandler(method), function (req, res) {
         expect(req.headers.accept).to.equal('foo/bar')
