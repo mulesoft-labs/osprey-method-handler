@@ -101,8 +101,10 @@ describe('osprey method handler', function () {
         expect(err.requestErrors[0]).to.include({
           type: 'header',
           keyword: 'type',
-          level: 'Violation',
-          message: "invalid header: ['x-header'] should be integer (type)"
+          dataPath: '/x-header',
+          message: 'should be integer',
+          data: 'abc',
+          schema: 'integer'
         })
 
         return next(err)
@@ -212,15 +214,14 @@ describe('osprey method handler', function () {
 
       app.use(function (err, req, res, next) {
         expect(err.ramlValidation).to.equal(true)
-        expect(err.requestErrors[0]).to.deep.equal(
-          {
-            type: 'query',
-            keyword: 'required',
-            data: '{}',
-            level: 'Violation',
-            message: "invalid query: should have required property 'a' (required)"
-          }
-        )
+        expect(err.requestErrors[0]).to.deep.equal({
+          type: 'query',
+          keyword: 'required',
+          dataPath: '/a',
+          message: 'is a required property',
+          data: {},
+          schema: { a: { type: 'string' } }
+        })
 
         return next(err)
       })
@@ -261,15 +262,14 @@ describe('osprey method handler', function () {
 
       app.use(function (err, req, res, next) {
         expect(err.ramlValidation).to.equal(true)
-        expect(err.requestErrors[0]).to.deep.equal(
-          {
-            type: 'query',
-            keyword: 'type',
-            data: '{"a":"value","b":"value"}',
-            level: 'Violation',
-            message: 'invalid query: b should be integer (type)'
-          }
-        )
+        expect(err.requestErrors[0]).to.deep.equal({
+          type: 'query',
+          keyword: 'type',
+          dataPath: '/b',
+          message: 'should be integer',
+          data: 'value',
+          schema: 'integer'
+        })
 
         return next(err)
       })
@@ -618,15 +618,14 @@ describe('osprey method handler', function () {
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.equal(true)
-          expect(err.requestErrors[0]).to.deep.equal(
-            {
-              type: 'body',
-              keyword: 'required',
-              data: '{}',
-              level: 'Violation',
-              message: "invalid body: should have required property 'foo' (required)"
-            }
-          )
+          expect(err.requestErrors[0]).to.deep.equal({
+            type: 'body',
+            keyword: 'required',
+            dataPath: '/foo',
+            message: 'is a required property',
+            data: {},
+            schema: { foo: { type: 'string' } }
+          })
           return next(err)
         })
 
@@ -653,16 +652,14 @@ describe('osprey method handler', function () {
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.equal(true)
-          expect(err.requestErrors[0]).to.deep.equal(
-            {
-              type: 'body',
-              keyword: 'minProperties',
-              data: '{"foo":"bar"}',
-              level: 'Violation',
-              message: 'invalid body: should NOT have less than 2 properties (minProperties)'
-            }
-
-          )
+          expect(err.requestErrors[0]).to.deep.equal({
+            type: 'body',
+            keyword: 'minProperties',
+            dataPath: '',
+            message: 'should NOT have fewer than 2 properties',
+            data: { foo: 'bar' },
+            schema: 2
+          })
           return next(err)
         })
 
@@ -691,15 +688,14 @@ describe('osprey method handler', function () {
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.equal(true)
-          expect(err.requestErrors[0]).to.deep.equal(
-            {
-              type: 'body',
-              keyword: 'maxProperties',
-              data: '{"foo":"bar","baz":"qux"}',
-              level: 'Violation',
-              message: 'invalid body: should NOT have more than 1 properties (maxProperties)'
-            }
-          )
+          expect(err.requestErrors[0]).to.deep.equal({
+            type: 'body',
+            keyword: 'maxProperties',
+            dataPath: '',
+            message: 'should NOT have more than 1 properties',
+            data: { foo: 'bar', baz: 'qux' },
+            schema: 1
+          })
           return next(err)
         })
 
@@ -728,15 +724,14 @@ describe('osprey method handler', function () {
 
           app.use(function (err, req, res, next) {
             expect(err.ramlValidation).to.equal(true)
-            expect(err.requestErrors[0]).to.deep.equal(
-              {
-                type: 'body',
-                keyword: 'additionalProperties',
-                data: '{"foo":"bar","baz":"qux"}',
-                level: 'Violation',
-                message: 'invalid body: should NOT have additional properties (additionalProperties)'
-              }
-            )
+            expect(err.requestErrors[0]).to.deep.equal({
+              type: 'body',
+              keyword: 'additionalProperties',
+              dataPath: '/baz',
+              message: 'is an invalid additional property',
+              data: { foo: 'bar', baz: 'qux' },
+              schema: false
+            })
             return next(err)
           })
 
@@ -1087,15 +1082,14 @@ describe('osprey method handler', function () {
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.equal(true)
-          expect(err.requestErrors[0]).to.deep.equal(
-            {
-              type: 'form',
-              keyword: 'type',
-              data: '{"a":["qwe",123]}',
-              level: 'Violation',
-              message: 'invalid form: a[0] should be number (type)'
-            }
-          )
+          expect(err.requestErrors[0]).to.deep.equal({
+            type: 'form',
+            keyword: 'type',
+            dataPath: '/a/0',
+            message: 'should be number',
+            data: 'qwe',
+            schema: 'number'
+          })
           return next(err)
         })
 
@@ -1211,15 +1205,14 @@ describe('osprey method handler', function () {
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.equal(true)
-          expect(err.requestErrors[0]).to.deep.equal(
-            {
-              type: 'form',
-              keyword: 'pattern',
-              data: '{"username":"123"}',
-              level: 'Violation',
-              message: 'invalid form: username should match pattern "^[a-zA-Z]\\w*$" (pattern)'
-            }
-          )
+          expect(err.requestErrors[0]).to.deep.equal({
+            type: 'form',
+            keyword: 'pattern',
+            dataPath: '/username',
+            message: 'should match pattern "^[a-zA-Z]\\w*$"',
+            data: '123',
+            schema: '^[a-zA-Z]\\w*$'
+          })
 
           return next(err)
         })
