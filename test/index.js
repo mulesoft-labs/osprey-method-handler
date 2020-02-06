@@ -7,6 +7,7 @@ const streamEqual = require('stream-equal')
 const FormData = require('form-data')
 const ospreyRouter = require('osprey-router')
 const wp = require('webapi-parser')
+const rewire = require('rewire')
 
 const ospreyMethodHandler = require('../')
 
@@ -1795,6 +1796,47 @@ describe('osprey method handler', function () {
           expect(res.body).to.equal('success')
           expect(res.status).to.equal(200)
         })
+    })
+  })
+})
+
+describe('nodeShapeFromParams', function () {
+  const nodeShapeFromParams = rewire('../').__get__('nodeShapeFromParams')
+  it('should construct a NodeShape from an array of Parameter', async function () {
+    const params = [
+      new wp.model.domain.Parameter()
+        .withName('a')
+        .withRequired(true)
+        .withSchema(
+          new wp.model.domain.ScalarShape()
+            .withName('schema')
+            .withDataType('http://www.w3.org/2001/XMLSchema#string')
+            .withPattern('$helloworld^')
+        ),
+      new wp.model.domain.Parameter()
+        .withName('b')
+        .withRequired(true)
+        .withSchema(
+          new wp.model.domain.ScalarShape()
+            .withName('schema')
+            .withDataType('http://www.w3.org/2001/XMLSchema#integer')
+        )
+    ]
+    const shape = await nodeShapeFromParams(params)
+    expect(shape).to.be.instanceof(wp.model.domain.NodeShape)
+    expect(JSON.parse(shape.toJsonSchema)).to.deep.equal({
+      $ref: '#/definitions/schema',
+      $schema: 'http://json-schema.org/draft-04/schema#',
+      definitions: {
+        schema: {
+          properties: {
+            a: { pattern: '$helloworld^', type: 'string' },
+            b: { type: 'integer' }
+          },
+          required: ['a', 'b'],
+          type: 'object'
+        }
+      }
     })
   })
 })
