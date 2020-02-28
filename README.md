@@ -59,6 +59,7 @@ Accepts [webapi-parser](https://github.com/raml-org/webapi-parser) `Operation` o
 
 **Options**
 
+* `ajv` Custom [Ajv](https://github.com/epoberezkin/ajv) instance to be used for validation
 * `discardUnknownBodies` Discard undefined request streams (default: `true`)
 * `discardUnknownQueryParameters` Discard undefined query parameters (default: `true`)
 * `discardUnknownHeaders` Discard undefined header parameters (always includes known headers) (default: `true`)

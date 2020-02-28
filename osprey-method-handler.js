@@ -192,7 +192,7 @@ function queryHandler (queryParameters, options) {
     } else {
       req.query = extend(req.query, query)
     }
-    const report = validateWithExtras(await schemaProm, query)
+    const report = validateWithExtras(await schemaProm, query, options.ajv)
     if (!report.valid) {
       return next(createValidationError(
         formatRamlValidationReport(report, 'query')))
@@ -243,7 +243,8 @@ function headerHandler (headers = [], options) {
       req.headers = definedHeaders
     }
 
-    const report = validateWithExtras(await schemaProm, req.headers)
+    const report = validateWithExtras(
+      await schemaProm, req.headers, options.ajv)
     if (!report.valid) {
       return next(createValidationError(
         formatRamlValidationReport(report, 'header')))
@@ -345,7 +346,8 @@ function jsonBodyHandler (body, path, methodName, options) {
   }
 
   middleware.push(async function ospreyJsonBodyValidator (req, res, next) {
-    const report = validateWithExtras(body.schema, req.body)
+    const report = validateWithExtras(
+      body.schema, req.body, options.ajv)
     if (!report.valid) {
       return next(createValidationError(
         formatRamlValidationReport(report, 'body')))
@@ -434,7 +436,7 @@ function urlencodedBodyHandler (body, path, methodName, options) {
     const sanitize = ramlSanitize(body.schema.properties)
     middleware.push(async function ospreyUrlencodedBodyValidator (req, res, next) {
       const sanBody = sanitize(req.body)
-      const report = validateWithExtras(body.schema, sanBody)
+      const report = validateWithExtras(body.schema, sanBody, options.ajv)
       if (!report.valid) {
         return next(createValidationError(
           formatRamlValidationReport(report, 'form')))
@@ -610,7 +612,7 @@ function formDataBodyHandler (body, path, methodName, options) {
         if (!this._done) {
           return Busboy.prototype.emit.call(this, 'finish')
         }
-        const report = validateWithExtras(body.schema, bodyData)
+        const report = validateWithExtras(body.schema, bodyData, options.ajv)
         if (!report.valid) {
           Busboy.prototype.emit.call(
             this,
@@ -737,15 +739,17 @@ function formatXmlErrors (errors) {
  *
  * @param  {webapi-parser.Shape} schema  Anything having .toJsonSchema property.
  * @param  {any} value  Anything to be validated against schema.
+ * @param  {Object} customAjv  Custom Ajv instance
  * @return {Object} - Validation report.
  */
-function validateWithExtras (schema, value) {
+function validateWithExtras (schema, value, customAjv) {
   const sch = JSON.parse(schema.toJsonSchema)
-  const valid = ajv.validate(sch, value)
+  const finalAjv = customAjv || ajv
+  const valid = finalAjv.validate(sch, value)
   if (!valid) {
     return {
       valid: false,
-      errors: ajv.errors.map(err => {
+      errors: finalAjv.errors.map(err => {
         err.data = err.data || value
         return err
       })
