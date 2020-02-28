@@ -69,6 +69,13 @@ Accepts [webapi-parser](https://github.com/raml-org/webapi-parser) `Operation` o
 * `parameterLimit` The [maximum number](https://github.com/expressjs/body-parser#parameterlimit) of URL-encoded parameters (default: `1000`)
 * `busboyLimits` The multipart limits defined by [Busboy](https://github.com/mscdex/busboy#busboy-methods)
 
+### Adding JSON schemas
+
+If you are using external JSON schemas with `$ref`, you can add them to the module before you compile the middleware. Use `handler.addJsonSchema(schema, key)` to compile automatically when used.
+
+`handler.addJsonSchema()` accepts a third (optional) `options` argument. Supported `options` are:
+* `ajv` Custom [Ajv](https://github.com/epoberezkin/ajv) instance. E.g. `handler.addJsonSchema(schema, key, {ajv: myAjvInstance})`. The provided ajv instance can later be passed as an option to the handler to perform validation.
+
 ### Validation Errors
 
 The library intercepts incoming requests and does validation. It will respond with `400`, `406` or `415` error instances from [http-errors](https://github.com/jshttp/http-errors). Validation errors are attached to `400` instances and noted using `ramlValidation = true` and `requestErrors = []` (an array of errors that were found, compatible with [request-error-handler](https://github.com/mulesoft-labs/node-request-error-handler)).

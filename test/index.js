@@ -8,6 +8,8 @@ const FormData = require('form-data')
 const ospreyRouter = require('osprey-router')
 const wp = require('webapi-parser')
 const rewire = require('rewire')
+const Ajv = require('ajv')
+const sinon = require('sinon')
 
 const ospreyMethodHandler = require('../')
 
@@ -566,6 +568,136 @@ describe('osprey method handler', function () {
   })
 
   describe('body', function () {
+    describe('addJsonSchema', function () {
+      const JSON_SCHEMA = JSON.stringify({
+        $schema: 'http://json-schema.org/draft-04/schema#',
+        title: 'Product set',
+        type: 'array',
+        items: {
+          title: 'Product',
+          type: 'object',
+          properties: {
+            id: {
+              description: 'The unique identifier for a product',
+              type: 'number'
+            },
+            name: { type: 'string' },
+            price: {
+              type: 'number',
+              minimum: 0,
+              exclusiveMinimum: true
+            },
+            tags: {
+              type: 'array',
+              items: { type: 'string' },
+              minItems: 1,
+              uniqueItems: true
+            },
+            dimensions: {
+              type: 'object',
+              properties: {
+                length: { type: 'number' },
+                width: { type: 'number' },
+                height: { type: 'number' }
+              },
+              required: ['length', 'width', 'height']
+            },
+            warehouseLocation: {
+              description: 'Coordinates of the warehouse with the product',
+              $ref: 'http://json-schema.org/geo'
+            }
+          },
+          required: ['id', 'name', 'price']
+        }
+      })
+
+      it('should support external $ref when added', async function () {
+        const app = ospreyRouter()
+
+        // Register GeoJSON schema.
+        ospreyMethodHandler.addJsonSchema(
+          require('./vendor/geo.json'),
+          'http://json-schema.org/geo'
+        )
+
+        const schema = new wp.model.domain.SchemaShape().withRaw(JSON_SCHEMA)
+        const method = makeRequestMethod('application/json', schema)
+
+        app.post('/', ospreyMethodHandler(method), function (req, res) {
+          res.end('success')
+        })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify([{
+            id: 123,
+            name: 'Product',
+            price: 12.34,
+            tags: ['foo', 'bar'],
+            warehouseLocation: {
+              latitude: 123,
+              longitude: 456
+            }
+          }])
+        })
+          .then(function (res) {
+            expect(res.status).to.equal(200)
+          })
+      })
+
+      it('should support external $ref with a custom ajv instance', function () {
+        const ajv = Ajv({
+          schemaId: 'auto',
+          allErrors: true,
+          verbose: true,
+          jsonPointers: true,
+          errorDataPath: 'property'
+        })
+        ajv.addMetaSchema(require('ajv/lib/refs/json-schema-draft-04.json'))
+
+        const addSchema = sinon.spy(ajv, 'addSchema')
+
+        const schema = new wp.model.domain.SchemaShape().withRaw(JSON_SCHEMA)
+        const method = makeRequestMethod('application/json', schema)
+
+        const app = ospreyRouter()
+
+        // Register GeoJSON schema.
+        ospreyMethodHandler.addJsonSchema(
+          require('./vendor/geo.json'),
+          'http://json-schema.org/geo',
+          { ajv }
+        )
+
+        const handler = ospreyMethodHandler(method, null, null, { ajv })
+        app.post('/', handler, function (req, res) {
+          res.end('success')
+        })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          body: JSON.stringify([{
+            id: 123,
+            name: 'Product',
+            price: 12.34,
+            tags: ['foo', 'bar'],
+            warehouseLocation: {
+              latitude: 123,
+              longitude: 456
+            }
+          }]),
+          headers: { 'Content-Type': 'application/json' }
+        })
+          .then(function (res) {
+            expect(res.status).to.equal(200)
+            sinon.assert.calledOnce(addSchema)
+          })
+      })
+    })
+
     describe('general', function () {
       it('should parse content-type from header and validate', function () {
         const app = ospreyRouter()

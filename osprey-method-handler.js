@@ -22,6 +22,22 @@ const ajv = new Ajv({
 })
 ajv.addMetaSchema(require('ajv/lib/refs/json-schema-draft-04.json'))
 
+/**
+ * Expose a method to add JSON schemas before compilation.
+ * For more info see https://github.com/mulesoft-labs/osprey-mock-service/issues/11
+ *
+ * @param {Object} schema
+ * @param {String} key
+ */
+function addJsonSchema (schema, key, options) {
+  options = options || {}
+  if (options.ajv) {
+    options.ajv.addSchema(schema, key)
+  } else {
+    ajv.addSchema(schema, key)
+  }
+}
+
 const DEFAULT_OPTIONS = {
   discardUnknownBodies: true,
   discardUnknownQueryParameters: true,
@@ -781,3 +797,4 @@ async function nodeShapeFromParams (params) {
 }
 
 module.exports = ospreyMethodHandler
+module.exports.addJsonSchema = addJsonSchema
