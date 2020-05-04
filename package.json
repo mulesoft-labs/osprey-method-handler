@@ -40,15 +40,15 @@
     "finalhandler": "^1.1.2",
     "form-data": "^3.0.0",
     "libxmljs": "^0.19.7",
-    "mocha": "^7.1.0",
-    "nyc": "^15.0.0",
     "osprey-router": "^0.6.3",
     "popsicle": "^12.0.5",
     "popsicle-server": "^3.0.0",
     "pre-commit": "^1.0.5",
     "rewire": "^4.0.1",
-    "sinon": "^8.1.1",
-    "standard": "^14.3.1"
+    "mocha": "^7.1.2",
+    "nyc": "^15.0.1",
+    "sinon": "^9.0.2",
+    "standard": "^14.3.3"
   },
   "dependencies": {
     "ajv": "^6.11.0",

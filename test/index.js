@@ -746,7 +746,6 @@ describe('osprey method handler', function () {
       it('should reject invalid RAML datatype with standard error format', function () {
         const app = ospreyRouter()
         const method = makeRequestMethod('application/json', makeRamlDt())
-
         app.post('/', ospreyMethodHandler(method))
 
         app.use(function (err, req, res, next) {
@@ -776,7 +775,6 @@ describe('osprey method handler', function () {
 
       it('should reject properties < minProperties', function () {
         const app = ospreyRouter()
-
         const method = makeRequestMethod(
           'application/json',
           makeRamlDt().withMinProperties(2)
@@ -818,7 +816,6 @@ describe('osprey method handler', function () {
           makeRamlDt().withMaxProperties(1)
         )
         app.post('/', ospreyMethodHandler(method))
-
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.equal(true)
           expect(err.requestErrors[0]).to.deep.equal({
@@ -1872,7 +1869,6 @@ describe('osprey method handler', function () {
       const method = makeResponseMethod('text/html', dt, '200')
 
       app.get('/', ospreyMethodHandler(method))
-
       return makeFetcher(app).fetch('/', {
         method: 'GET',
         headers: {
