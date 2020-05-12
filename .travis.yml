@@ -23,7 +23,6 @@ deploy:
   provider: npm
   edge: true
   api_key: "$NPM_TOKEN"
-  cleanup: true  # avoids adding libxmljs to dependencies
   on:
     tags: true
     node: "node"
