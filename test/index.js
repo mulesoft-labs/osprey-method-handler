@@ -3,7 +3,9 @@
 const expect = require('chai').expect
 const fs = require('fs')
 const join = require('path').join
-const streamEqual = require('stream-equal')
+const streamEqualLib = require('stream-equal')
+// https://github.com/fent/node-stream-equal/issues/32
+const streamEqual = streamEqualLib.default || streamEqualLib
 const FormData = require('form-data')
 const ospreyRouter = require('osprey-router')
 const wp = require('webapi-parser')
@@ -1552,18 +1554,19 @@ describe('osprey method handler', function () {
             expect(value).to.equal('LICENSE')
           })
 
-          req.form.on('file', function (name, stream) {
+          req.form.on('file', async function (name, stream) {
             expect(name).to.equal('contents')
-
-            streamEqual(
-              stream,
-              fs.createReadStream(join(__dirname, '..', 'LICENSE')),
-              function (err, equal) {
-                expect(equal).to.equal(true)
-
-                return err ? res.end() : res.end('success')
-              }
-            )
+            var equal = false
+            try {
+              equal = await streamEqual(
+                stream,
+                fs.createReadStream(join(__dirname, '..', 'LICENSE'))
+              )
+              res.end('success')
+            } catch (err) {
+              res.end()
+            }
+            expect(equal).to.equal(true)
           })
 
           req.pipe(req.form)
