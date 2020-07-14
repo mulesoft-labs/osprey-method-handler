@@ -346,21 +346,6 @@ function jsonBodyHandler (body, path, methodName, options) {
   })
   const middleware = [jsonBodyParser]
 
-  /*
-    Check whether body.schema has type specified in RAML.
-
-    In case it's not specified, its type would be AnyShape.
-    Type checks are performed by checking type-specific properties
-    instead of using 'instanceof' because of this issue:
-      https://github.com/aml-org/amf/issues/569
-  */
-  const isScalarShape = body.schema.dataType !== undefined
-  const isNodeShape = body.schema.properties !== undefined
-  const isArrayShape = body.schema.items !== undefined
-  if (!isScalarShape && !isNodeShape && !isArrayShape) {
-    return compose(middleware)
-  }
-
   middleware.push(async function ospreyJsonBodyValidator (req, res, next) {
     const report = validateWithExtras(
       body.schema, req.body, options.ajv)
@@ -371,6 +356,7 @@ function jsonBodyHandler (body, path, methodName, options) {
     return next()
   })
 
+  const isNodeShape = body.schema.properties !== undefined
   if (!isNodeShape) {
     return compose(middleware)
   }

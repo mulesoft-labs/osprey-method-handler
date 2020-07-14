@@ -571,46 +571,74 @@ describe('osprey method handler', function () {
 
   describe('body', function () {
     describe('addJsonSchema', function () {
-      const JSON_SCHEMA = JSON.stringify({
-        $schema: 'http://json-schema.org/draft-04/schema#',
-        title: 'Product set',
-        type: 'array',
-        items: {
-          title: 'Product',
-          type: 'object',
-          properties: {
-            id: {
-              description: 'The unique identifier for a product',
-              type: 'number'
+      const testRamlStr = `#%RAML 1.0
+types:
+  ProductSet:
+    type: |
+      {
+        "$schema": "http://json-schema.org/draft-04/schema#",
+        "title": "Product set",
+        "type": "array",
+        "items": {
+          "title": "Product",
+          "type": "object",
+          "properties": {
+            "id": {
+              "description": "The unique identifier for a product",
+              "type": "number"
             },
-            name: { type: 'string' },
-            price: {
-              type: 'number',
-              minimum: 0,
-              exclusiveMinimum: true
+            "name": {
+              "type": "string"
             },
-            tags: {
-              type: 'array',
-              items: { type: 'string' },
-              minItems: 1,
-              uniqueItems: true
+            "price": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
             },
-            dimensions: {
-              type: 'object',
-              properties: {
-                length: { type: 'number' },
-                width: { type: 'number' },
-                height: { type: 'number' }
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
               },
-              required: ['length', 'width', 'height']
+              "minItems": 1,
+              "uniqueItems": true
             },
-            warehouseLocation: {
-              description: 'Coordinates of the warehouse with the product',
-              $ref: 'http://json-schema.org/geo'
+            "dimensions": {
+              "type": "object",
+              "properties": {
+                "length": {
+                  "type": "number"
+                },
+                "width": {
+                  "type": "number"
+                },
+                "height": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "length",
+                "width",
+                "height"
+              ]
+            },
+            "warehouseLocation": {
+              "description": "Coordinates of the warehouse with the product",
+              "$ref": "http://json-schema.org/geo"
             }
           },
-          required: ['id', 'name', 'price']
+          "required": [
+            "id",
+            "name",
+            "price"
+          ]
         }
+      }
+      `
+      let schema
+      before(async function () {
+        const model = await wp.WebApiParser.raml10.parse(testRamlStr)
+        schema = model.declares[0]
       })
 
       it('should support external $ref when added', async function () {
@@ -622,7 +650,6 @@ describe('osprey method handler', function () {
           'http://json-schema.org/geo'
         )
 
-        const schema = new wp.model.domain.SchemaShape().withRaw(JSON_SCHEMA)
         const method = makeRequestMethod('application/json', schema)
 
         app.post('/', ospreyMethodHandler(method), function (req, res) {
@@ -662,7 +689,6 @@ describe('osprey method handler', function () {
 
         const addSchema = sinon.spy(ajv, 'addSchema')
 
-        const schema = new wp.model.domain.SchemaShape().withRaw(JSON_SCHEMA)
         const method = makeRequestMethod('application/json', schema)
 
         const app = ospreyRouter()
