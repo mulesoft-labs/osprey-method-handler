@@ -80,7 +80,9 @@ If you are using external JSON schemas with `$ref`, you can add them to the modu
 
 The library intercepts incoming requests and does validation. It will respond with `400`, `406` or `415` error instances from [http-errors](https://github.com/jshttp/http-errors). Validation errors are attached to `400` instances and noted using `ramlValidation = true` and `requestErrors = []` (an array of errors that were found, compatible with [request-error-handler](https://github.com/mulesoft-labs/node-request-error-handler)).
 
-See [the code](https://github.com/mulesoft-labs/osprey-method-handler/blob/master/osprey-method-handler.js#L675-L727) for a complete list of errors formats.
+**Please note:** XML validation does not have a way to get the `keyword`, `dataPath`, `data` or `schema`. Instead, it has a `meta` object that contains information from `libxmljs` (`domain`, `code`, `level`, `column`, `line`).
+
+See [the code](https://github.com/mulesoft-labs/osprey-method-handler/blob/7adb162035e4e593a5bbda8b3e83b1996adc2174/osprey-method-handler.js#L705-L751) for a complete list of errors formats.
 
 To render the error messages for your application, look into error handling for Express, Connect, Router or any other middleware error handler. If you want a pre-built error handler, try using [request-error-handler](https://github.com/mulesoft-labs/node-request-error-handler), which provides a pre-defined error formatter.
 
