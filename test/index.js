@@ -753,7 +753,7 @@ describe('osprey method handler', function () {
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.equal(true)
           expect(err.requestErrors[0]).to.deep.equal({
-            type: 'body',
+            type: 'json',
             keyword: 'required',
             dataPath: '/foo',
             message: 'is a required property',
@@ -786,7 +786,7 @@ describe('osprey method handler', function () {
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.equal(true)
           expect(err.requestErrors[0]).to.deep.equal({
-            type: 'body',
+            type: 'json',
             keyword: 'minProperties',
             dataPath: '',
             message: 'should NOT have fewer than 2 properties',
@@ -821,7 +821,7 @@ describe('osprey method handler', function () {
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.equal(true)
           expect(err.requestErrors[0]).to.deep.equal({
-            type: 'body',
+            type: 'json',
             keyword: 'maxProperties',
             dataPath: '',
             message: 'should NOT have more than 1 properties',
@@ -857,7 +857,7 @@ describe('osprey method handler', function () {
           app.use(function (err, req, res, next) {
             expect(err.ramlValidation).to.equal(true)
             expect(err.requestErrors[0]).to.deep.equal({
-              type: 'body',
+              type: 'json',
               keyword: 'additionalProperties',
               dataPath: '/baz',
               message: 'is an invalid additional property',

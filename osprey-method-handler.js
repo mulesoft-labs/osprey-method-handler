@@ -366,7 +366,7 @@ function jsonBodyHandler (body, path, methodName, options) {
       body.schema, req.body, options.ajv)
     if (!report.valid) {
       return next(createValidationError(
-        formatRamlValidationReport(report, 'body')))
+        formatRamlValidationReport(report, 'json')))
     }
     return next()
   })
