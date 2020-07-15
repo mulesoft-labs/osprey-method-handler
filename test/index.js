@@ -755,6 +755,123 @@ types:
       })
     })
 
+    describe('raml unions validation', function () {
+      function makeUnionDt () {
+        return new wp.model.domain.UnionShape()
+          .withName('item')
+          .withAnyOf([
+            new wp.model.domain.ScalarShape()
+              .withDataType('http://www.w3.org/2001/XMLSchema#string'),
+            new wp.model.domain.ScalarShape()
+              .withDataType('http://a.ml/vocabularies/shapes#number')
+              .withMaximum(100)
+          ])
+      }
+
+      it('should let valid requests through', function () {
+        const app = ospreyRouter()
+        const method = makeRequestMethod('application/json', makeUnionDt())
+        app.post('/', ospreyMethodHandler(method), function (req, res) {
+          expect(req.body).to.equal('hello')
+          res.end('success')
+        })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: '"hello"'
+        })
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+
+      it('should reject invalid requests with an error response', function () {
+        const app = ospreyRouter()
+        const method = makeRequestMethod('application/json', makeUnionDt())
+        app.post('/', ospreyMethodHandler(method))
+
+        app.use(function (err, req, res, next) {
+          expect(err.ramlValidation).to.equal(true)
+          err.requestErrors.sort()
+          expect(err.requestErrors[0]).to.deep.equal({
+            type: 'json',
+            keyword: 'type',
+            dataPath: '',
+            message: 'should be string',
+            data: 101,
+            schema: 'string'
+          })
+          expect(err.requestErrors[1]).to.deep.equal({
+            type: 'json',
+            keyword: 'maximum',
+            dataPath: '',
+            message: 'should be <= 100',
+            data: 101,
+            schema: 100
+          })
+          expect(err.requestErrors[2].message).to.equal(
+            'should match some schema in anyOf')
+          return next(err)
+        })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: '101'
+        })
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+
+      it('should validate agains both union types', function () {
+        const app = ospreyRouter()
+        const method = makeRequestMethod('application/json', makeUnionDt())
+        app.post('/', ospreyMethodHandler(method))
+
+        app.use(function (err, req, res, next) {
+          expect(err.ramlValidation).to.equal(true)
+          err.requestErrors.sort()
+          expect(err.requestErrors[0]).to.deep.equal({
+            type: 'json',
+            keyword: 'type',
+            dataPath: '',
+            message: 'should be string',
+            data: { zoo: 'bear' },
+            schema: 'string'
+          })
+          expect(err.requestErrors[1]).to.deep.equal({
+            type: 'json',
+            keyword: 'type',
+            dataPath: '',
+            message: 'should be number',
+            data: { zoo: 'bear' },
+            schema: 'number'
+          })
+          expect(err.requestErrors[2].message).to.equal(
+            'should match some schema in anyOf')
+          return next(err)
+        })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: '{"zoo": "bear"}'
+        })
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+    })
+
     describe('raml datatype', function () {
       function makeRamlDt () {
         return new wp.model.domain.NodeShape()
