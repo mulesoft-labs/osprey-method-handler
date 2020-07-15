@@ -59,7 +59,7 @@ Accepts [webapi-parser](https://github.com/raml-org/webapi-parser) `Operation` o
 
 **Options**
 
-* `ajv` Custom [Ajv](https://github.com/epoberezkin/ajv) instance to be used for validation
+* `ajv` Custom [Ajv](https://github.com/epoberezkin/ajv) instance to be used to validate query strings, request headers and request bodied (url-encoded, form-data, json)
 * `discardUnknownBodies` Discard undefined request streams (default: `true`)
 * `discardUnknownQueryParameters` Discard undefined query parameters (default: `true`)
 * `discardUnknownHeaders` Discard undefined header parameters (always includes known headers) (default: `true`)
@@ -80,9 +80,9 @@ If you are using external JSON schemas with `$ref`, you can add them to the modu
 
 The library intercepts incoming requests and does validation. It will respond with `400`, `406` or `415` error instances from [http-errors](https://github.com/jshttp/http-errors). Validation errors are attached to `400` instances and noted using `ramlValidation = true` and `requestErrors = []` (an array of errors that were found, compatible with [request-error-handler](https://github.com/mulesoft-labs/node-request-error-handler)).
 
-**Please note:** XML validation does not have a way to get the `keyword`, `dataPath`, `data` or `schema`. Instead, it has a `meta` object that contains information from `libxmljs` (`domain`, `code`, `level`, `column`, `line`).
-
 See [the code](https://github.com/mulesoft-labs/osprey-method-handler/blob/7adb162035e4e593a5bbda8b3e83b1996adc2174/osprey-method-handler.js#L705-L751) for a complete list of errors formats.
+
+**Please note:** XML validation does not have a way to get the `keyword`, `dataPath`, `data` or `schema`. Instead, it has a `meta` object that contains information from `libxmljs` (`domain`, `code`, `level`, `column`, `line`).
 
 To render the error messages for your application, look into error handling for Express, Connect, Router or any other middleware error handler. If you want a pre-built error handler, try using [request-error-handler](https://github.com/mulesoft-labs/node-request-error-handler), which provides a pre-defined error formatter.
 
