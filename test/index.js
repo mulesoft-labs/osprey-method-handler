@@ -1,26 +1,30 @@
-/* global describe, it */
-/* eslint-disable no-unused-expressions */
+/* global describe, it, before, context */
 
-var expect = require('chai').expect
-var sinon = require('sinon')
-var router = require('osprey-router')
-var fs = require('fs')
-var join = require('path').join
-var streamEqual = require('stream-equal')
+const expect = require('chai').expect
+const fs = require('fs')
+const join = require('path').join
+const streamEqualLib = require('stream-equal')
+// https://github.com/fent/node-stream-equal/issues/32
+const streamEqual = streamEqualLib.default || streamEqualLib
+const FormData = require('form-data')
+const ospreyRouter = require('osprey-router')
+const wp = require('webapi-parser')
+const rewire = require('rewire')
 const Ajv = require('ajv')
-var handler = require('../')
-var FormData = require('form-data')
+const sinon = require('sinon')
+
+const ospreyMethodHandler = require('../')
 
 /* Helps using popsicle-server with popsicle version 12+.
  *
  * Inspired by popsicle 12.0+ code.
  */
 function makeFetcher (app) {
-  var compose = require('throwback').compose
-  var Request = require('servie').Request
-  var popsicle = require('popsicle')
-  var popsicleServer = require('popsicle-server').server
-  var finalhandler = require('finalhandler')
+  const compose = require('throwback').compose
+  const Request = require('servie').Request
+  const popsicle = require('popsicle')
+  const popsicleServer = require('popsicle-server').server
+  const finalhandler = require('finalhandler')
 
   // Set response text to "body" property to mimic popsicle v10
   // response interface.
@@ -40,8 +44,8 @@ function makeFetcher (app) {
     }
   }
 
-  var popsicleServerMiddleware = popsicleServer(createServer(app))
-  var middleware = compose([
+  const popsicleServerMiddleware = popsicleServer(createServer(app))
+  const middleware = compose([
     responseBodyMiddleware,
     popsicleServerMiddleware,
     popsicle.middleware
@@ -52,9 +56,26 @@ function makeFetcher (app) {
   }
 }
 
+function makeRequestMethod (ct, schema) {
+  return new wp.model.domain.Operation()
+    .withMethod('GET')
+    .withRequest(
+      new wp.model.domain.Request().withPayloads([
+        new wp.model.domain.Payload()
+          .withMediaType(ct)
+          .withSchema(schema)
+      ])
+    )
+}
+
+before(async function () {
+  this.timeout(10000)
+  await wp.WebApiParser.init()
+})
+
 describe('osprey method handler', function () {
   it('should return a middleware function', function () {
-    var middleware = handler()
+    const middleware = ospreyMethodHandler()
 
     expect(middleware).to.be.a('function')
     expect(middleware.length).to.equal(3)
@@ -62,28 +83,34 @@ describe('osprey method handler', function () {
 
   describe('headers', function () {
     it('should reject invalid headers using standard error format', function () {
-      var app = router()
+      const app = ospreyRouter()
+      const method = new wp.model.domain.Operation()
+        .withMethod('GET')
+        .withRequest(
+          new wp.model.domain.Request().withHeaders([
+            new wp.model.domain.Parameter()
+              .withName('X-Header')
+              .withRequired(true)
+              .withSchema(
+                new wp.model.domain.ScalarShape()
+                  .withName('schema')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#integer')
+              )
+          ])
+        )
 
-      app.get('/', handler({
-        headers: {
-          'X-Header': {
-            type: 'integer'
-          }
-        }
-      }, '/', 'GET'))
+      app.get('/', ospreyMethodHandler(method, '/', 'GET'))
 
       app.use(function (err, req, res, next) {
         expect(err.ramlValidation).to.equal(true)
-        expect(err.requestErrors).to.deep.equal([
-          {
-            type: 'header',
-            keyword: 'type',
-            dataPath: 'x-header',
-            message: 'invalid header (type, integer)',
-            schema: 'integer',
-            data: 'abc'
-          }
-        ])
+        expect(err.requestErrors[0]).to.include({
+          type: 'header',
+          keyword: 'type',
+          dataPath: '/x-header',
+          message: 'should be integer',
+          data: 'abc',
+          schema: 'integer'
+        })
 
         return next(err)
       })
@@ -99,47 +126,32 @@ describe('osprey method handler', function () {
         })
     })
 
-    it('should sanitize RAML 0.8 headers', function () {
-      var app = router()
+    it('should sanitize headers', function () {
+      const app = ospreyRouter()
+      const method = new wp.model.domain.Operation()
+        .withMethod('GET')
+        .withRequest(
+          new wp.model.domain.Request().withHeaders([
+            new wp.model.domain.Parameter()
+              .withName('date')
+              .withRequired(true)
+              .withSchema(
+                new wp.model.domain.ScalarShape()
+                  .withName('schema')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#dateTime')
+                  .withFormat('rfc2616')
+              )
+          ])
+        )
 
-      app.get('/', handler({
-        headers: {
-          date: {
-            type: 'date'
-          }
+      const middleware = ospreyMethodHandler(method, '/', 'GET')
+      app.get('/', middleware,
+        function (req, res) {
+          expect(req.headers.date).to.equal(new Date(req.headers.date).toUTCString())
+
+          res.end('success')
         }
-      }, '/', 'GET', { RAMLVersion: 'RAML08' }), function (req, res) {
-        expect(req.headers.date).to.be.an.instanceOf(Date)
-
-        res.end('success')
-      })
-      return makeFetcher(app).fetch('/', {
-        method: 'GET',
-        headers: {
-          date: new Date().toString()
-        }
-      })
-        .then(function (res) {
-          expect(res.body).to.equal('success')
-          expect(res.status).to.equal(200)
-        })
-    })
-
-    it('should sanitize RAML 1.0 headers', function () {
-      var app = router()
-
-      app.get('/', handler({
-        headers: {
-          date: {
-            type: 'datetime',
-            format: 'rfc2616'
-          }
-        }
-      }, '/', 'GET', { RAMLVersion: 'RAML10' }), function (req, res) {
-        expect(req.headers.date).to.equal(new Date(req.headers.date).toUTCString())
-
-        res.end('success')
-      })
+      )
       return makeFetcher(app).fetch('/', {
         method: 'GET',
         headers: {
@@ -151,35 +163,118 @@ describe('osprey method handler', function () {
           expect(res.status).to.equal(200)
         })
     })
+    it('should sanitize standard headers', function () {
+      const standardHeaders = require('standard-headers')
+      const header1 = standardHeaders.request[0]
+      const header2 = standardHeaders.request[1]
+      const app = ospreyRouter()
+      const method = new wp.model.domain.Operation()
+        .withMethod('GET')
+        .withRequest(new wp.model.domain.Request())
+
+      const middleware = ospreyMethodHandler(method, '/', 'GET')
+      app.get('/', middleware,
+        function (req, res) {
+          expect(req.headers[header1]).to.equal('foobar')
+          expect(req.headers[header2]).to.equal('hello')
+
+          res.end('success')
+        }
+      )
+      const request = {
+        method: 'GET',
+        headers: {
+
+        }
+      }
+      request.headers[header1] = 'foobar'
+      request.headers[header2] = 'hello'
+      return makeFetcher(app).fetch('/', request)
+        .then(function (res) {
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
   })
 
   describe('query parameters', function () {
-    it('should reject invalid query parameters using standard error format', function () {
-      var app = router()
+    it('should reject on missing required query parameters', function () {
+      const app = ospreyRouter()
+      const method = new wp.model.domain.Operation()
+        .withMethod('GET')
+        .withRequest(
+          new wp.model.domain.Request().withQueryParameters([
+            new wp.model.domain.Parameter()
+              .withName('a')
+              .withRequired(true)
+              .withSchema(
+                new wp.model.domain.ScalarShape()
+                  .withName('schema')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#string')
+              )
+          ])
+        )
 
-      app.get('/', handler({
-        queryParameters: {
-          a: {
-            type: 'string'
-          },
-          b: {
-            type: 'integer'
-          }
-        }
-      }, '/', 'GET'))
+      app.get('/', ospreyMethodHandler(method, '/', 'GET'))
 
       app.use(function (err, req, res, next) {
         expect(err.ramlValidation).to.equal(true)
-        expect(err.requestErrors).to.deep.equal([
-          {
-            type: 'query',
-            keyword: 'type',
-            dataPath: 'b',
-            message: 'invalid query (type, integer)',
-            schema: 'integer',
-            data: 'value'
-          }
-        ])
+        expect(err.requestErrors[0]).to.deep.equal({
+          type: 'query',
+          keyword: 'required',
+          dataPath: '/a',
+          message: 'is a required property',
+          data: {},
+          schema: { a: { type: 'string' } }
+        })
+
+        return next(err)
+      })
+
+      return makeFetcher(app).fetch('/', {
+        method: 'GET'
+      })
+        .then(function (res) {
+          expect(res.status).to.equal(400)
+        })
+    })
+    it('should reject invalid query parameters using standard error format', function () {
+      const app = ospreyRouter()
+      const method = new wp.model.domain.Operation()
+        .withMethod('GET')
+        .withRequest(
+          new wp.model.domain.Request().withQueryParameters([
+            new wp.model.domain.Parameter()
+              .withName('a')
+              .withRequired(true)
+              .withSchema(
+                new wp.model.domain.ScalarShape()
+                  .withName('schema')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#string')
+              ),
+            new wp.model.domain.Parameter()
+              .withName('b')
+              .withRequired(true)
+              .withSchema(
+                new wp.model.domain.ScalarShape()
+                  .withName('schema')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#integer')
+              )
+          ])
+        )
+
+      app.get('/', ospreyMethodHandler(method, '/', 'GET'))
+
+      app.use(function (err, req, res, next) {
+        expect(err.ramlValidation).to.equal(true)
+        expect(err.requestErrors[0]).to.deep.equal({
+          type: 'query',
+          keyword: 'type',
+          dataPath: '/b',
+          message: 'should be integer',
+          data: 'value',
+          schema: 'integer'
+        })
 
         return next(err)
       })
@@ -192,21 +287,64 @@ describe('osprey method handler', function () {
         })
     })
 
-    it('should filter undefined query parameters', function () {
-      var app = router()
+    it('should sanitize query parameters', function () {
+      const app = ospreyRouter()
+      const method = new wp.model.domain.Operation()
+        .withMethod('GET')
+        .withRequest(
+          new wp.model.domain.Request().withQueryParameters([
+            new wp.model.domain.Parameter()
+              .withName('id')
+              .withRequired(true)
+              .withSchema(
+                new wp.model.domain.ScalarShape()
+                  .withName('id')
+                  .withDataType('http://a.ml/vocabularies/shapes#number')
+              )
+          ])
+        )
 
-      app.get('/', handler({
-        queryParameters: {
-          a: {
-            type: 'string'
-          }
+      app.get('/', ospreyMethodHandler(method, '/', 'GET'),
+        function (req, res) {
+          expect(req.url).to.equal('/?id=123')
+          expect(req.query).to.deep.equal({ id: 123 })
+          res.end('success')
         }
-      }, '/', 'GET'), function (req, res) {
-        expect(req.url).to.equal('/?a=value')
-        expect(req.query).to.deep.equal({ a: 'value' })
+      )
 
-        res.end('success')
+      return makeFetcher(app).fetch('/?id=123', {
+        method: 'GET'
       })
+        .then(function (res) {
+          expect(res.body).to.equal('success')
+          expect(res.status).to.equal(200)
+        })
+    })
+
+    it('should filter undefined query parameters', function () {
+      const app = ospreyRouter()
+      const method = new wp.model.domain.Operation()
+        .withMethod('GET')
+        .withRequest(
+          new wp.model.domain.Request().withQueryParameters([
+            new wp.model.domain.Parameter()
+              .withName('a')
+              .withRequired(true)
+              .withSchema(
+                new wp.model.domain.ScalarShape()
+                  .withName('schema')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#string')
+              )
+          ])
+        )
+
+      app.get('/', ospreyMethodHandler(method, '/', 'GET'),
+        function (req, res) {
+          expect(req.url).to.equal('/?a=value')
+          expect(req.query).to.deep.equal({ a: 'value' })
+          res.end('success')
+        }
+      )
 
       return makeFetcher(app).fetch('/?a=value&b=value', {
         method: 'GET'
@@ -218,21 +356,30 @@ describe('osprey method handler', function () {
     })
 
     it('should remove all unknown query parameters', function () {
-      var app = router()
+      const app = ospreyRouter()
+      const method = new wp.model.domain.Operation()
+        .withMethod('GET')
+        .withRequest(
+          new wp.model.domain.Request().withQueryParameters([
+            new wp.model.domain.Parameter()
+              .withName('q')
+              .withRequired(false)
+              .withSchema(
+                new wp.model.domain.ScalarShape()
+                  .withName('schema')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#string')
+              )
+          ])
+        )
 
-      app.get('/', handler({
-        queryParameters: {
-          q: {
-            type: 'string',
-            required: false
-          }
+      app.get('/', ospreyMethodHandler(method, '/', 'GET'),
+        function (req, res) {
+          expect(req.url).to.equal('/')
+          expect(req.query).to.deep.equal({})
+
+          res.end('success')
         }
-      }, '/', 'GET'), function (req, res) {
-        expect(req.url).to.equal('/')
-        expect(req.query).to.deep.equal({})
-
-        res.end('success')
-      })
+      )
 
       return makeFetcher(app).fetch('/?a=value&b=value', {
         method: 'GET'
@@ -243,47 +390,69 @@ describe('osprey method handler', function () {
         })
     })
 
-    it('should not filter undefined query parameters when discardUnknownQueryParameters is false', function () {
-      var app = router()
+    context('when discardUnknownQueryParameters is false', function () {
+      it('should not filter undefined query parameters', function () {
+        const app = ospreyRouter()
+        const method = new wp.model.domain.Operation()
+          .withMethod('GET')
+          .withRequest(
+            new wp.model.domain.Request().withQueryParameters([
+              new wp.model.domain.Parameter()
+                .withName('a')
+                .withRequired(true)
+                .withSchema(
+                  new wp.model.domain.ScalarShape()
+                    .withName('schema')
+                    .withDataType('http://www.w3.org/2001/XMLSchema#string')
+                )
+            ])
+          )
 
-      app.get('/', handler({
-        queryParameters: {
-          a: {
-            type: 'string'
+        const middleware = ospreyMethodHandler(
+          method, '/', 'GET', { discardUnknownQueryParameters: false })
+        app.get('/', middleware,
+          function (req, res) {
+            expect(req.url).to.equal('/?a=value&b=value')
+            expect(req.query).to.deep.equal({ a: 'value' })
+            res.end('success')
           }
-        }
-      }, '/', 'GET', { discardUnknownQueryParameters: false }), function (req, res) {
-        expect(req.url).to.equal('/?a=value&b=value')
-        expect(req.query).to.deep.equal({ a: 'value' })
+        )
 
-        res.end('success')
-      })
-
-      return makeFetcher(app).fetch('/?a=value&b=value', {
-        method: 'GET'
-      })
-        .then(function (res) {
-          expect(res.body).to.equal('success')
-          expect(res.status).to.equal(200)
+        return makeFetcher(app).fetch('/?a=value&b=value', {
+          method: 'GET'
         })
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
     })
 
     it('should support empty query strings', function () {
-      var app = router()
+      const app = ospreyRouter()
+      const method = new wp.model.domain.Operation()
+        .withMethod('GET')
+        .withRequest(
+          new wp.model.domain.Request().withQueryParameters([
+            new wp.model.domain.Parameter()
+              .withName('test')
+              .withRequired(false)
+              .withSchema(
+                new wp.model.domain.ScalarShape()
+                  .withName('schema')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#boolean')
+              )
+          ])
+        )
 
-      app.get('/', handler({
-        queryParameters: {
-          test: {
-            type: 'boolean',
-            required: false
-          }
+      app.get('/', ospreyMethodHandler(method, '/', 'GET'),
+        function (req, res) {
+          expect(req.url).to.equal('/')
+          expect(req.query).to.deep.equal({})
+
+          res.end('success')
         }
-      }, '/', 'GET'), function (req, res) {
-        expect(req.url).to.equal('/')
-        expect(req.query).to.deep.equal({})
-
-        res.end('success')
-      })
+      )
 
       return makeFetcher(app).fetch('/', {
         method: 'GET'
@@ -294,47 +463,29 @@ describe('osprey method handler', function () {
         })
     })
 
-    it('should parse requests using array query syntax (RAML 0.8)', function () {
-      var app = router()
+    it('should parse requests using array query syntax', function () {
+      const app = ospreyRouter()
+      const method = new wp.model.domain.Operation()
+        .withMethod('GET')
+        .withRequest(
+          new wp.model.domain.Request().withQueryParameters([
+            new wp.model.domain.Parameter()
+              .withName('foo')
+              .withRequired(true)
+              .withSchema(
+                new wp.model.domain.ArrayShape()
+              )
+          ])
+        )
 
-      app.get('/', handler({
-        queryParameters: {
-          foo: {
-            type: 'string',
-            repeat: true
-          }
+      const middleware = ospreyMethodHandler(method, '/', 'GET')
+      app.get('/', middleware,
+        function (req, res) {
+          expect(req.url).to.equal('/?foo=a&foo=b&foo=c')
+          expect(req.query).to.deep.equal({ foo: ['a', 'b', 'c'] })
+          res.end('success')
         }
-      }, '/', 'GET', { RAMLVersion: 'RAML08' }), function (req, res) {
-        expect(req.url).to.equal('/?foo=a&foo=b&foo=c')
-        expect(req.query).to.deep.equal({ foo: ['a', 'b', 'c'] })
-
-        res.end('success')
-      })
-
-      return makeFetcher(app).fetch('/?foo[]=a&foo[1]=b&foo[22]=c', {
-        method: 'GET'
-      })
-        .then(function (res) {
-          expect(res.body).to.equal('success')
-          expect(res.status).to.equal(200)
-        })
-    })
-
-    it('should parse requests using array query syntax (RAML 1.0)', function () {
-      var app = router()
-
-      app.get('/', handler({
-        queryParameters: {
-          foo: {
-            type: 'array'
-          }
-        }
-      }, '/', 'GET', { RAMLVersion: 'RAML10' }), function (req, res) {
-        expect(req.url).to.equal('/?foo=a&foo=b&foo=c')
-        expect(req.query).to.deep.equal({ foo: ['a', 'b', 'c'] })
-
-        res.end('success')
-      })
+      )
 
       return makeFetcher(app).fetch('/?foo=["a","b","c"]', {
         method: 'GET'
@@ -346,20 +497,30 @@ describe('osprey method handler', function () {
     })
 
     it('should unescape querystring keys', function () {
-      var app = router()
+      const app = ospreyRouter()
+      const method = new wp.model.domain.Operation()
+        .withMethod('GET')
+        .withRequest(
+          new wp.model.domain.Request().withQueryParameters([
+            new wp.model.domain.Parameter()
+              .withName('foo[bar]')
+              .withRequired(true)
+              .withSchema(
+                new wp.model.domain.ScalarShape()
+                  .withName('schema')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#string')
+              )
+          ])
+        )
 
-      app.get('/', handler({
-        queryParameters: {
-          'foo[bar]': {
-            type: 'string'
-          }
+      app.get('/', ospreyMethodHandler(method, '/', 'GET'),
+        function (req, res) {
+          expect(req.url).to.equal('/?foo%5Bbar%5D=test')
+          expect(req.query).to.deep.equal({ 'foo[bar]': 'test' })
+
+          res.end('success')
         }
-      }, '/', 'GET'), function (req, res) {
-        expect(req.url).to.equal('/?foo%5Bbar%5D=test')
-        expect(req.query).to.deep.equal({ 'foo[bar]': 'test' })
-
-        res.end('success')
-      })
+      )
 
       return makeFetcher(app).fetch('/?foo[bar]=test', {
         method: 'GET'
@@ -369,678 +530,129 @@ describe('osprey method handler', function () {
           expect(res.status).to.equal(200)
         })
     })
-
-    it('should support unused repeat parameters (mulesoft/osprey#84)', function () {
-      var app = router()
-
-      app.get('/', handler({
-        queryParameters: {
-          instance_state_name: {
-            type: 'string',
-            repeat: true,
-            required: false
-          }
-        }
-      }, '/', 'GET', { RAMLVersion: 'RAML08' }), function (req, res) {
-        expect(req.url).to.equal('/')
-        expect(req.query).to.deep.equal({ instance_state_name: [] })
-
-        res.end('success')
-      })
-
-      return makeFetcher(app).fetch('/', {
-        method: 'GET'
-      })
-        .then(function (res) {
-          expect(res.body).to.equal('success')
-          expect(res.status).to.equal(200)
+    context('when repeated parameter value is not provided', function () {
+      it('should not throw an error (mulesoft/osprey#84)', function () {
+        const app = ospreyRouter()
+        const method = new wp.model.domain.Operation()
+          .withMethod('GET')
+          .withRequest(
+            new wp.model.domain.Request().withQueryParameters([
+              new wp.model.domain.Parameter()
+                .withName('instance_state_name')
+                .withRequired(false)
+                .withSchema(
+                  new wp.model.domain.ArrayShape()
+                    .withName('instance_state_name')
+                    .withItems(
+                      new wp.model.domain.ScalarShape()
+                        .withName('instance_state_name')
+                        .withDataType('http://www.w3.org/2001/XMLSchema#string')
+                    )
+                )
+            ])
+          )
+        const middleware = ospreyMethodHandler(method, '/', 'GET')
+        app.get('/', middleware, function (req, res) {
+          expect(req.url).to.equal('/')
+          expect(req.query).to.deep.equal({})
+          res.end('success')
         })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'GET'
+        })
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
     })
   })
 
   describe('body', function () {
-    describe('general', function () {
-      it('should parse content-type from header and validate', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              schema: '{}'
-            }
-          }
-        }, '/', 'POST'), function (req, res) {
-          expect(req.body).to.deep.equal({ foo: 'bar' })
-
-          res.end('success')
-        })
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: JSON.stringify({
-            foo: 'bar'
-          })
-        })
-          .then(function (res) {
-            expect(res.body).to.equal('success')
-            expect(res.status).to.equal(200)
-          })
-      })
-    })
-
-    describe('raml datatype', function () {
-      var RAML_DT = {
-        foo: {
-          name: 'foo',
-          displayName: 'foo',
-          type: ['string'],
-          required: true
-        }
-      }
-
-      it('should reject invalid RAML datatype with standard error format', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              properties: RAML_DT
-            }
-          }
-        }))
-
-        app.use(function (err, req, res, next) {
-          expect(err.ramlValidation).to.equal(true)
-          expect(err.requestErrors).to.deep.equal([
-            {
-              type: 'json',
-              keyword: 'required',
-              dataPath: 'foo',
-              message: 'invalid json (required, true)',
-              schema: true,
-              data: undefined
-            }
-          ])
-          return next(err)
-        })
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: '{}'
-        })
-          .then(function (res) {
-            expect(res.status).to.equal(400)
-          })
-      })
-
-      it('should reject properties < minProperties', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              properties: RAML_DT,
-              minProperties: 2
-            }
-          }
-        }))
-
-        app.use(function (err, req, res, next) {
-          expect(err.ramlValidation).to.equal(true)
-          expect(err.requestErrors).to.deep.equal([
-            {
-              type: 'json',
-              keyword: 'minProperties',
-              dataPath: undefined,
-              message: 'invalid json (minProperties, 2)',
-              schema: 2,
-              data: undefined
-            }
-          ])
-          return next(err)
-        })
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: JSON.stringify({
-            foo: 'bar'
-          })
-        })
-          .then(function (res) {
-            expect(res.status).to.equal(400)
-          })
-      })
-
-      it('should reject properties > maxProperties', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              properties: RAML_DT,
-              maxProperties: 1
-            }
-          }
-        }))
-
-        app.use(function (err, req, res, next) {
-          expect(err.ramlValidation).to.equal(true)
-          expect(err.requestErrors).to.deep.equal([
-            {
-              type: 'json',
-              keyword: 'maxProperties',
-              dataPath: undefined,
-              message: 'invalid json (maxProperties, 1)',
-              schema: 1,
-              data: undefined
-            }
-          ])
-          return next(err)
-        })
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: JSON.stringify({
-            foo: 'bar',
-            baz: 'qux'
-          })
-        })
-          .then(function (res) {
-            expect(res.status).to.equal(400)
-          })
-      })
-      it('should reject additional properties when additionalProperties is false', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              properties: RAML_DT,
-              additionalProperties: false
-            }
-          }
-        }))
-
-        app.use(function (err, req, res, next) {
-          expect(err.ramlValidation).to.equal(true)
-          expect(err.requestErrors).to.deep.equal([
-            {
-              type: 'json',
-              keyword: 'additionalProperties',
-              dataPath: undefined,
-              message: 'invalid json (additionalProperties, false)',
-              schema: false,
-              data: undefined
-            }
-          ])
-          return next(err)
-        })
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: JSON.stringify({
-            foo: 'bar',
-            baz: 'qux'
-          })
-        })
-          .then(function (res) {
-            expect(res.status).to.equal(400)
-          })
-      })
-      it('should accept valid RAML datatype', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              properties: RAML_DT,
-              minProperties: 1,
-              maxProperties: 1,
-              additionalProperties: false
-            }
-          }
-        }, '/', 'POST'), function (req, res) {
-          expect(req.body).to.deep.equal({ foo: 'bar' })
-
-          res.end('success')
-        })
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: JSON.stringify({
-            foo: 'bar'
-          })
-        })
-          .then(function (res) {
-            expect(res.body).to.equal('success')
-            expect(res.status).to.equal(200)
-          })
-      })
-
-      it('should accept arrays as root elements', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              type: ['array'],
-              items: 'string'
-            }
-          }
-        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
-          expect(req.body).to.deep.equal(['a', 'b', 'c'])
-
-          res.end('success')
-        })
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: JSON.stringify(['a', 'b', 'c'])
-        })
-          .then(function (res) {
-            expect(res.body).to.equal('success')
-            expect(res.status).to.equal(200)
-          })
-      })
-      it('should reject objects when an array is set as root element', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              type: ['array'],
-              items: 'string'
-            }
-          }
-        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
-          res.end('failure')
-        })
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: JSON.stringify({
-            foo: 'bar'
-          })
-        })
-          .then(function (res) {
-            expect(res.status).to.equal(400)
-          })
-      })
-
-      it('should accept strings as root elements', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              type: ['string']
-            }
-          }
-        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
-          expect(req.body).to.equal('test')
-
-          res.end('success')
-        })
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: '"test"'
-        })
-          .then(function (res) {
-            expect(res.body).to.equal('success')
-            expect(res.status).to.equal(200)
-          })
-      })
-      it('should reject objects when a string is set as root element', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              type: ['string']
-            }
-          }
-        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
-          res.send('failure')
-        })
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: JSON.stringify({
-            foo: 'bar'
-          })
-        })
-          .then(function (res) {
-            expect(res.status).to.equal(400)
-          })
-      })
-
-      it('should accept objects with empty properties', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              type: ['object'],
-              properties: {}
-            }
-          }
-        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
-          expect(req.body).to.deep.equal({ foo: 'bar' })
-
-          res.end('success')
-        })
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: JSON.stringify({
-            foo: 'bar'
-          })
-        })
-          .then(function (res) {
-            expect(res.body).to.equal('success')
-            expect(res.status).to.equal(200)
-          })
-      })
-      it('should reject invalid objects', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              type: ['object'],
-              properties: {}
-            }
-          }
-        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
-          res.send('failure')
-        })
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: '"foo"'
-        })
-          .then(function (res) {
-            expect(res.status).to.equal(400)
-          })
-      })
-    })
-
-    describe('json', function () {
-      var JSON_SCHEMA = '{"properties":{"x":{"type":"string"}},"required":["x"]}'
-
-      it('should reject invalid json with standard error format', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              schema: JSON_SCHEMA
-            }
-          }
-        }))
-
-        app.use(function (err, req, res, next) {
-          expect(err.ramlValidation).to.equal(true)
-          expect(err.requestErrors).to.deep.equal([
-            {
-              type: 'json',
-              keyword: 'required',
-              dataPath: '/x',
-              message: 'is a required property',
-              schema: { x: { type: 'string' } },
-              data: {}
-            }
-          ])
-
-          return next(err)
-        })
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: '{}'
-        })
-          .then(function (res) {
-            expect(res.status).to.equal(400)
-          })
-      })
-
-      it('should reject invalid request bodies', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              schema: JSON_SCHEMA
-            }
-          }
-        }))
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          body: 'foobar',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        })
-          .then(function (res) {
-            expect(res.status).to.equal(400)
-          })
-      })
-
-      it('should parse valid json', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              // 'schema' and 'type' are synonymous in RAML 1.0
-              type: JSON_SCHEMA
-            }
-          }
-        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
-          expect(req.body).to.deep.equal([true, false])
-
-          res.end('success')
-        })
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify([true, false])
-        })
-          .then(function (res) {
-            expect(res.body).to.equal('success')
-            expect(res.status).to.equal(200)
-          })
-      })
-
-      it('should validate using draft 03', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              schema: JSON.stringify({
-                required: true,
-                $schema: 'http://json-schema.org/draft-03/schema',
-                type: 'object',
-                properties: {
-                  name: {
-                    type: 'string',
-                    required: true
-                  }
+    describe('addJsonSchema', function () {
+      const testRamlStr = `#%RAML 1.0
+types:
+  ProductSet:
+    type: |
+      {
+        "$schema": "http://json-schema.org/draft-04/schema#",
+        "title": "Product set",
+        "type": "array",
+        "items": {
+          "title": "Product",
+          "type": "object",
+          "properties": {
+            "id": {
+              "description": "The unique identifier for a product",
+              "type": "number"
+            },
+            "name": {
+              "type": "string"
+            },
+            "price": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "dimensions": {
+              "type": "object",
+              "properties": {
+                "length": {
+                  "type": "number"
+                },
+                "width": {
+                  "type": "number"
+                },
+                "height": {
+                  "type": "number"
                 }
-              })
-            }
-          }
-        }))
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          body: '{"url":"http://example.com"}',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        })
-          .then(function (res) {
-            expect(res.status).to.equal(400)
-          })
-      })
-
-      it('should use a custom ajv instance for validation if provided in options', function () {
-        var ajv = Ajv({
-          schemaId: 'auto',
-          allErrors: true,
-          verbose: true,
-          jsonPointers: true,
-          errorDataPath: 'property'
-        })
-
-        var compile = sinon.spy(ajv, 'compile')
-
-        var schema = {
-          $schema: 'http://json-schema.org/draft-07/schema',
-          type: 'object',
-          properties: {
-            name: {
-              type: 'string'
+              },
+              "required": [
+                "length",
+                "width",
+                "height"
+              ]
+            },
+            "warehouseLocation": {
+              "description": "Coordinates of the warehouse with the product",
+              "$ref": "http://json-schema.org/geo"
             }
           },
-          required: [
-            'name'
+          "required": [
+            "id",
+            "name",
+            "price"
           ]
         }
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              schema: JSON.stringify(schema)
-            }
-          }
-        },
-        null,
-        null,
-        { ajv }
-        ))
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          body: '{"url":"http://example.com"}',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        })
-          .then(function (res) {
-            expect(res.status).to.equal(400)
-            sinon.assert.calledWith(compile, schema)
-          })
+      }
+      `
+      let schema
+      before(async function () {
+        const model = await wp.WebApiParser.raml10.parse(testRamlStr)
+        schema = model.declares[0]
       })
 
-      it('should support external $ref when added', function () {
-        var schema = JSON.stringify({
-          $schema: 'http://json-schema.org/draft-04/schema#',
-          title: 'Product set',
-          type: 'array',
-          items: {
-            title: 'Product',
-            type: 'object',
-            properties: {
-              id: {
-                description: 'The unique identifier for a product',
-                type: 'number'
-              },
-              name: {
-                type: 'string'
-              },
-              price: {
-                type: 'number',
-                minimum: 0,
-                exclusiveMinimum: true
-              },
-              tags: {
-                type: 'array',
-                items: {
-                  type: 'string'
-                },
-                minItems: 1,
-                uniqueItems: true
-              },
-              dimensions: {
-                type: 'object',
-                properties: {
-                  length: { type: 'number' },
-                  width: { type: 'number' },
-                  height: { type: 'number' }
-                },
-                required: ['length', 'width', 'height']
-              },
-              warehouseLocation: {
-                description: 'Coordinates of the warehouse with the product',
-                $ref: 'http://json-schema.org/geo'
-              }
-            },
-            required: ['id', 'name', 'price']
-          }
-        })
-
-        var app = router()
+      it('should support external $ref when added', async function () {
+        const app = ospreyRouter()
 
         // Register GeoJSON schema.
-        handler.addJsonSchema(
+        ospreyMethodHandler.addJsonSchema(
           require('./vendor/geo.json'),
           'http://json-schema.org/geo'
         )
 
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              schema: schema
-            }
-          }
-        }), function (req, res) {
+        const method = makeRequestMethod('application/json', schema)
+
+        app.post('/', ospreyMethodHandler(method), function (req, res) {
           res.end('success')
         })
 
@@ -1066,7 +678,7 @@ describe('osprey method handler', function () {
       })
 
       it('should support external $ref with a custom ajv instance', function () {
-        var ajv = Ajv({
+        const ajv = Ajv({
           schemaId: 'auto',
           allErrors: true,
           verbose: true,
@@ -1075,71 +687,21 @@ describe('osprey method handler', function () {
         })
         ajv.addMetaSchema(require('ajv/lib/refs/json-schema-draft-04.json'))
 
-        var addSchema = sinon.spy(ajv, 'addSchema')
+        const addSchema = sinon.spy(ajv, 'addSchema')
 
-        var schema = JSON.stringify({
-          $schema: 'http://json-schema.org/draft-04/schema#',
-          title: 'Product set',
-          type: 'array',
-          items: {
-            title: 'Product',
-            type: 'object',
-            properties: {
-              id: {
-                description: 'The unique identifier for a product',
-                type: 'number'
-              },
-              name: {
-                type: 'string'
-              },
-              price: {
-                type: 'number',
-                minimum: 0,
-                exclusiveMinimum: true
-              },
-              tags: {
-                type: 'array',
-                items: {
-                  type: 'string'
-                },
-                minItems: 1,
-                uniqueItems: true
-              },
-              dimensions: {
-                type: 'object',
-                properties: {
-                  length: { type: 'number' },
-                  width: { type: 'number' },
-                  height: { type: 'number' }
-                },
-                required: ['length', 'width', 'height']
-              },
-              warehouseLocation: {
-                description: 'Coordinates of the warehouse with the product',
-                $ref: 'http://json-schema.org/geo'
-              }
-            },
-            required: ['id', 'name', 'price']
-          }
-        })
+        const method = makeRequestMethod('application/json', schema)
 
-        var app = router()
+        const app = ospreyRouter()
 
         // Register GeoJSON schema.
-        handler.addJsonSchema(
+        ospreyMethodHandler.addJsonSchema(
           require('./vendor/geo.json'),
           'http://json-schema.org/geo',
           { ajv }
         )
 
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              schema: schema
-            }
-          }
-        }, null, null, { ajv }
-        ), function (req, res) {
+        const handler = ospreyMethodHandler(method, null, null, { ajv })
+        app.post('/', handler, function (req, res) {
           res.end('success')
         })
 
@@ -1162,25 +724,501 @@ describe('osprey method handler', function () {
             sinon.assert.calledOnce(addSchema)
           })
       })
+    })
 
-      it('should reject invalid schema', function () {
-        expect(function () {
-          handler({
-            body: {
-              'application/json': {
-                schema: JSON.stringify({
-                  $schema: 'http://invalid'
-                })
-              }
+    describe('general', function () {
+      it('should parse content-type from header and validate', function () {
+        const app = ospreyRouter()
+        const schema = new wp.model.domain.NodeShape()
+        const method = makeRequestMethod('application/json', schema)
+
+        const middleware = ospreyMethodHandler(method, '/', 'POST')
+        app.post('/', middleware, function (req, res) {
+          expect(req.body).to.deep.equal({ foo: 'bar' })
+
+          res.end('success')
+        })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: JSON.stringify({
+            foo: 'bar'
+          })
+        })
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+    })
+
+    describe('raml unions validation', function () {
+      function makeUnionDt () {
+        return new wp.model.domain.UnionShape()
+          .withName('item')
+          .withAnyOf([
+            new wp.model.domain.ScalarShape()
+              .withDataType('http://www.w3.org/2001/XMLSchema#string'),
+            new wp.model.domain.ScalarShape()
+              .withDataType('http://a.ml/vocabularies/shapes#number')
+              .withMaximum(100)
+          ])
+      }
+
+      it('should let valid requests through', function () {
+        const app = ospreyRouter()
+        const method = makeRequestMethod('application/json', makeUnionDt())
+        app.post('/', ospreyMethodHandler(method), function (req, res) {
+          expect(req.body).to.equal('hello')
+          res.end('success')
+        })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: '"hello"'
+        })
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+
+      it('should reject invalid requests with an error response', function () {
+        const app = ospreyRouter()
+        const method = makeRequestMethod('application/json', makeUnionDt())
+        app.post('/', ospreyMethodHandler(method))
+
+        app.use(function (err, req, res, next) {
+          expect(err.ramlValidation).to.equal(true)
+          err.requestErrors.sort()
+          expect(err.requestErrors[0]).to.deep.equal({
+            type: 'json',
+            keyword: 'type',
+            dataPath: '',
+            message: 'should be string',
+            data: 101,
+            schema: 'string'
+          })
+          expect(err.requestErrors[1]).to.deep.equal({
+            type: 'json',
+            keyword: 'maximum',
+            dataPath: '',
+            message: 'should be <= 100',
+            data: 101,
+            schema: 100
+          })
+          expect(err.requestErrors[2].message).to.equal(
+            'should match some schema in anyOf')
+          return next(err)
+        })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: '101'
+        })
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+
+      it('should validate agains both union types', function () {
+        const app = ospreyRouter()
+        const method = makeRequestMethod('application/json', makeUnionDt())
+        app.post('/', ospreyMethodHandler(method))
+
+        app.use(function (err, req, res, next) {
+          expect(err.ramlValidation).to.equal(true)
+          err.requestErrors.sort()
+          expect(err.requestErrors[0]).to.deep.equal({
+            type: 'json',
+            keyword: 'type',
+            dataPath: '',
+            message: 'should be string',
+            data: { zoo: 'bear' },
+            schema: 'string'
+          })
+          expect(err.requestErrors[1]).to.deep.equal({
+            type: 'json',
+            keyword: 'type',
+            dataPath: '',
+            message: 'should be number',
+            data: { zoo: 'bear' },
+            schema: 'number'
+          })
+          expect(err.requestErrors[2].message).to.equal(
+            'should match some schema in anyOf')
+          return next(err)
+        })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: '{"zoo": "bear"}'
+        })
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+    })
+
+    describe('raml datatype', function () {
+      function makeRamlDt () {
+        return new wp.model.domain.NodeShape()
+          .withName('schema')
+          .withProperties([
+            new wp.model.domain.PropertyShape()
+              .withMinCount(1)
+              .withName('foo')
+              .withRange(
+                new wp.model.domain.ScalarShape()
+                  .withName('foo')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#string')
+              )
+          ])
+      }
+
+      it('should reject invalid RAML datatype with standard error format', function () {
+        const app = ospreyRouter()
+        const method = makeRequestMethod('application/json', makeRamlDt())
+        app.post('/', ospreyMethodHandler(method))
+
+        app.use(function (err, req, res, next) {
+          expect(err.ramlValidation).to.equal(true)
+          expect(err.requestErrors[0]).to.deep.equal({
+            type: 'json',
+            keyword: 'required',
+            dataPath: '/foo',
+            message: 'is a required property',
+            data: {},
+            schema: { foo: { type: 'string' } }
+          })
+          return next(err)
+        })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: '{}'
+        })
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+
+      it('should reject properties < minProperties', function () {
+        const app = ospreyRouter()
+        const method = makeRequestMethod(
+          'application/json',
+          makeRamlDt().withMinProperties(2)
+        )
+        app.post('/', ospreyMethodHandler(method))
+
+        app.use(function (err, req, res, next) {
+          expect(err.ramlValidation).to.equal(true)
+          expect(err.requestErrors[0]).to.deep.equal({
+            type: 'json',
+            keyword: 'minProperties',
+            dataPath: '',
+            message: 'should NOT have fewer than 2 properties',
+            data: { foo: 'bar' },
+            schema: 2
+          })
+          return next(err)
+        })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: JSON.stringify({
+            foo: 'bar'
+          })
+        })
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+
+      it('should reject properties > maxProperties', function () {
+        const app = ospreyRouter()
+
+        const method = makeRequestMethod(
+          'application/json',
+          makeRamlDt().withMaxProperties(1)
+        )
+        app.post('/', ospreyMethodHandler(method))
+        app.use(function (err, req, res, next) {
+          expect(err.ramlValidation).to.equal(true)
+          expect(err.requestErrors[0]).to.deep.equal({
+            type: 'json',
+            keyword: 'maxProperties',
+            dataPath: '',
+            message: 'should NOT have more than 1 properties',
+            data: { foo: 'bar', baz: 'qux' },
+            schema: 1
+          })
+          return next(err)
+        })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: JSON.stringify({
+            foo: 'bar',
+            baz: 'qux'
+          })
+        })
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
+      })
+      context('when additionalProperties is false', function () {
+        it('should reject additional properties', function () {
+          const app = ospreyRouter()
+
+          const dt = makeRamlDt().withClosed(true)
+          dt.additionalPropertiesSchema = null
+          const method = makeRequestMethod('application/json', dt)
+          app.post('/', ospreyMethodHandler(method))
+
+          app.use(function (err, req, res, next) {
+            expect(err.ramlValidation).to.equal(true)
+            expect(err.requestErrors[0]).to.deep.equal({
+              type: 'json',
+              keyword: 'additionalProperties',
+              dataPath: '/baz',
+              message: 'is an invalid additional property',
+              data: { foo: 'bar', baz: 'qux' },
+              schema: false
+            })
+            return next(err)
+          })
+
+          return makeFetcher(app).fetch('/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8'
+            },
+            body: JSON.stringify({
+              foo: 'bar',
+              baz: 'qux'
+            })
+          })
+            .then(function (res) {
+              expect(res.status).to.equal(400)
+            })
+        })
+        it('should accept defined properties', function () {
+          const app = ospreyRouter()
+
+          const dt = makeRamlDt().withClosed(true)
+          dt.additionalPropertiesSchema = null
+          const method = makeRequestMethod('application/json', dt)
+          app.post('/', ospreyMethodHandler(method),
+            function (req, res) {
+              expect(req.body).to.deep.equal({ foo: 'bar' })
+              res.end('success')
             }
-          }, '/foo')
-        }).to.throw(/^Unable to compile JSON schema/)
+          )
+          return makeFetcher(app).fetch('/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8'
+            },
+            body: JSON.stringify({
+              foo: 'bar'
+            })
+          })
+            .then(function (res) {
+              expect(res.status).to.equal(200)
+            })
+        })
+      })
+      it('should accept arrays as root elements', function () {
+        const app = ospreyRouter()
+
+        const dt = new wp.model.domain.ArrayShape()
+          .withItems(
+            new wp.model.domain.ScalarShape()
+              .withName('foo')
+              .withDataType('http://www.w3.org/2001/XMLSchema#string')
+          )
+        const method = makeRequestMethod('application/json', dt)
+
+        const middleware = ospreyMethodHandler(method, '/', 'POST')
+        app.post('/', middleware,
+          function (req, res) {
+            expect(req.body).to.deep.equal(['a', 'b', 'c'])
+            res.end('success')
+          }
+        )
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: JSON.stringify(['a', 'b', 'c'])
+        })
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+      context('when an array is set as root element', function () {
+        it('should reject objects', function () {
+          const app = ospreyRouter()
+
+          const dt = new wp.model.domain.ArrayShape()
+            .withItems(
+              new wp.model.domain.ScalarShape()
+                .withDataType('http://www.w3.org/2001/XMLSchema#string')
+            )
+          const method = makeRequestMethod('application/json', dt)
+
+          const middleware = ospreyMethodHandler(method, '/', 'POST')
+          app.post('/', middleware, function (req, res) {
+            res.end('failure')
+          })
+
+          return makeFetcher(app).fetch('/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8'
+            },
+            body: JSON.stringify({
+              foo: 'bar'
+            })
+          })
+            .then(function (res) {
+              expect(res.status).to.equal(400)
+            })
+        })
+      })
+      it('should accept strings as root elements', function () {
+        const app = ospreyRouter()
+
+        const dt = new wp.model.domain.ScalarShape()
+          .withName('foo')
+          .withDataType('http://www.w3.org/2001/XMLSchema#string')
+        const method = makeRequestMethod('application/json', dt)
+
+        const middleware = ospreyMethodHandler(method, '/', 'POST')
+        app.post('/', middleware, function (req, res) {
+          expect(req.body).to.equal('test')
+          res.end('success')
+        })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: '"test"'
+        })
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+      context('when a string is set as root element', function () {
+        it('should reject objects', function () {
+          const app = ospreyRouter()
+
+          const dt = new wp.model.domain.ScalarShape()
+            .withName('foo')
+            .withDataType('http://www.w3.org/2001/XMLSchema#string')
+          const method = makeRequestMethod('application/json', dt)
+
+          const middleware = ospreyMethodHandler(method, '/', 'POST')
+          app.post('/', middleware, function (req, res) {
+            res.send('failure')
+          })
+
+          return makeFetcher(app).fetch('/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8'
+            },
+            body: JSON.stringify({
+              foo: 'bar'
+            })
+          })
+            .then(function (res) {
+              expect(res.status).to.equal(400)
+            })
+        })
+      })
+      it('should accept objects with empty properties', function () {
+        const app = ospreyRouter()
+
+        const dt = makeRamlDt().withProperties([])
+        const method = makeRequestMethod('application/json', dt)
+
+        const middleware = ospreyMethodHandler(method, '/', 'POST')
+        app.post('/', middleware, function (req, res) {
+          expect(req.body).to.deep.equal({ foo: 'bar' })
+
+          res.end('success')
+        })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: JSON.stringify({
+            foo: 'bar'
+          })
+        })
+          .then(function (res) {
+            expect(res.body).to.equal('success')
+            expect(res.status).to.equal(200)
+          })
+      })
+      it('should reject invalid objects', function () {
+        const app = ospreyRouter()
+
+        const dt = makeRamlDt().withProperties([])
+        const method = makeRequestMethod('application/json', dt)
+
+        const middleware = ospreyMethodHandler(method, '/', 'POST')
+        app.post('/', middleware, function (req, res) {
+          res.send('failure')
+        })
+
+        return makeFetcher(app).fetch('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: '"foo"'
+        })
+          .then(function (res) {
+            expect(res.status).to.equal(400)
+          })
       })
     })
 
     if (hasModule('libxmljs')) {
       describe('xml', function () {
-        var XML_SCHEMA = [
+        const XML_SCHEMA = [
           '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">',
           '<xs:element name="comment"><xs:complexType><xs:all>',
           '<xs:element name="author" type="xs:string"/>',
@@ -1190,31 +1228,24 @@ describe('osprey method handler', function () {
         ].join('')
 
         it('should error creating middleware with invalid xml', function () {
+          const schema = new wp.model.domain.SchemaShape().withRaw('foobar')
+          const method = makeRequestMethod('text/xml', schema)
           expect(function () {
-            handler({
-              body: {
-                'text/xml': {
-                  schema: 'foobar'
-                }
-              }
-            }, '/foo')
+            ospreyMethodHandler(method, '/foo')
           }).to.throw(/^Unable to compile XML schema/)
         })
 
         it('should reject invalid xml bodies with standard error format', function () {
-          var app = router()
+          const app = ospreyRouter()
 
-          app.post('/', handler({
-            body: {
-              'text/xml': {
-                schema: XML_SCHEMA
-              }
-            }
-          }))
+          const schema = new wp.model.domain.SchemaShape().withRaw(XML_SCHEMA)
+          const method = makeRequestMethod('text/xml', schema)
+
+          app.post('/', ospreyMethodHandler(method))
 
           app.use(function (err, req, res, next) {
             expect(err.ramlValidation).to.equal(true)
-            expect(err.requestErrors).to.deep.equal([
+            expect(err.requestErrors[0]).to.deep.equal(
               {
                 type: 'xml',
                 message: 'Element \'date\': This element is not expected. Expected is ( content ).\n',
@@ -1226,7 +1257,7 @@ describe('osprey method handler', function () {
                   line: 4
                 }
               }
-            ])
+            )
 
             return next(err)
           })
@@ -1250,15 +1281,11 @@ describe('osprey method handler', function () {
         })
 
         it('should reject invalid request bodies', function () {
-          var app = router()
+          const app = ospreyRouter()
+          const schema = new wp.model.domain.SchemaShape().withRaw(XML_SCHEMA)
+          const method = makeRequestMethod('text/xml', schema)
 
-          app.post('/', handler({
-            body: {
-              'text/xml': {
-                schema: XML_SCHEMA
-              }
-            }
-          }))
+          app.post('/', ospreyMethodHandler(method))
 
           return makeFetcher(app).fetch('/', {
             method: 'POST',
@@ -1273,15 +1300,11 @@ describe('osprey method handler', function () {
         })
 
         it('should parse valid xml documents', function () {
-          var app = router()
+          const app = ospreyRouter()
+          const schema = new wp.model.domain.SchemaShape().withRaw(XML_SCHEMA)
+          const method = makeRequestMethod('text/xml', schema)
 
-          app.post('/', handler({
-            body: {
-              'text/xml': {
-                schema: XML_SCHEMA
-              }
-            }
-          }), function (req, res) {
+          app.post('/', ospreyMethodHandler(method), function (req, res) {
             expect(req.xml.get('/comment/author').text()).to.equal('author')
             expect(req.xml.get('/comment/content').text()).to.equal('nothing')
 
@@ -1311,39 +1334,43 @@ describe('osprey method handler', function () {
 
     describe('urlencoded', function () {
       it('should reject invalid forms with standard error format', function () {
-        var app = router()
+        const app = ospreyRouter()
+        const dt = new wp.model.domain.NodeShape()
+          .withName('schema')
+          .withProperties([
+            new wp.model.domain.PropertyShape()
+              .withName('a')
+              .withRange(
+                new wp.model.domain.ArrayShape()
+                  .withName('a')
+                  .withItems(
+                    new wp.model.domain.ScalarShape()
+                      .withName('a')
+                      .withDataType('http://a.ml/vocabularies/shapes#number')
+                  )
+              )
+          ])
+        const method = makeRequestMethod('application/x-www-form-urlencoded', dt)
 
-        app.post('/', handler({
-          body: {
-            'application/x-www-form-urlencoded': {
-              formParameters: {
-                a: {
-                  type: 'boolean'
-                }
-              }
-            }
-          }
-        }, '/', 'POST', { RAMLVersion: 'RAML10' }))
+        const middleware = ospreyMethodHandler(method, '/', 'POST')
+        app.post('/', middleware)
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.equal(true)
-          expect(err.requestErrors).to.deep.equal([
-            {
-              type: 'form',
-              keyword: 'type',
-              dataPath: 'a',
-              message: 'invalid form (type, boolean)',
-              schema: 'boolean',
-              data: ['true', '123']
-            }
-          ])
-
+          expect(err.requestErrors[0]).to.deep.equal({
+            type: 'form',
+            keyword: 'type',
+            dataPath: '/a/0',
+            message: 'should be number',
+            data: 'qwe',
+            schema: 'number'
+          })
           return next(err)
         })
 
         return makeFetcher(app).fetch('/', {
           method: 'POST',
-          body: 'a=true&a=123',
+          body: 'a=qwe&a=123',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
           }
@@ -1353,29 +1380,31 @@ describe('osprey method handler', function () {
           })
       })
 
-      it('should parse valid forms (RAML 0.8)', function () {
-        var app = router()
+      it('should sanitize url-encoded forms values', function () {
+        const app = ospreyRouter()
 
-        app.post('/', handler({
-          body: {
-            'application/x-www-form-urlencoded': {
-              formParameters: {
-                a: {
-                  type: 'boolean',
-                  repeat: true
-                }
-              }
-            }
-          }
-        }, '/', 'POST', { RAMLVersion: 'RAML08' }), function (req, res) {
-          expect(req.body).to.deep.equal({ a: [true, true] })
+        const dt = new wp.model.domain.NodeShape()
+          .withName('schema')
+          .withProperties([
+            new wp.model.domain.PropertyShape()
+              .withName('id')
+              .withRange(
+                new wp.model.domain.ScalarShape()
+                  .withName('id')
+                  .withDataType('http://a.ml/vocabularies/shapes#number')
+              )
+          ])
+        const method = makeRequestMethod('application/x-www-form-urlencoded', dt)
 
+        const middleware = ospreyMethodHandler(method, '/', 'POST')
+        app.post('/', middleware, function (req, res) {
+          expect(req.body).to.deep.equal({ id: 123 })
           res.end('success')
         })
 
         return makeFetcher(app).fetch('/', {
           method: 'POST',
-          body: 'a=true&a=123',
+          body: 'id=123',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
           }
@@ -1386,21 +1415,28 @@ describe('osprey method handler', function () {
           })
       })
 
-      it('should parse valid forms (RAML 1.0)', function () {
-        var app = router()
+      it('should parse valid forms', function () {
+        const app = ospreyRouter()
 
-        app.post('/', handler({
-          body: {
-            'application/x-www-form-urlencoded': {
-              formParameters: {
-                a: {
-                  type: 'array',
-                  items: 'boolean'
-                }
-              }
-            }
-          }
-        }, '/', 'POST', { RAMLVersion: 'RAML10' }), function (req, res) {
+        const dt = new wp.model.domain.NodeShape()
+          .withName('schema')
+          .withProperties([
+            new wp.model.domain.PropertyShape()
+              .withName('a')
+              .withRange(
+                new wp.model.domain.ArrayShape()
+                  .withName('a')
+                  .withItems(
+                    new wp.model.domain.ScalarShape()
+                      .withName('a')
+                      .withDataType('http://www.w3.org/2001/XMLSchema#boolean')
+                  )
+              )
+          ])
+        const method = makeRequestMethod('application/x-www-form-urlencoded', dt)
+
+        const middleware = ospreyMethodHandler(method, '/', 'POST')
+        app.post('/', middleware, function (req, res) {
           expect(req.body).to.deep.equal({ a: [true, true] })
 
           res.end('success')
@@ -1422,42 +1458,41 @@ describe('osprey method handler', function () {
 
     describe('form data', function () {
       it('should reject invalid forms using standard error format', function () {
-        var app = router()
+        const app = ospreyRouter()
+        const dt = new wp.model.domain.NodeShape()
+          .withName('schema')
+          .withProperties([
+            new wp.model.domain.PropertyShape()
+              .withName('username')
+              .withRange(
+                new wp.model.domain.ScalarShape()
+                  .withName('username')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#string')
+                  .withPattern('^[a-zA-Z]\\w*$')
+              )
+          ])
+        const method = makeRequestMethod('multipart/form-data', dt)
 
-        app.post('/', handler({
-          body: {
-            'multipart/form-data': {
-              formParameters: {
-                username: {
-                  type: 'string',
-                  pattern: '^[a-zA-Z]\\w*$'
-                }
-              }
-            }
-          }
-        }), function (req, res, next) {
+        app.post('/', ospreyMethodHandler(method), function (req, res, next) {
           req.form.on('error', next)
-
           req.pipe(req.form)
         })
 
         app.use(function (err, req, res, next) {
           expect(err.ramlValidation).to.equal(true)
-          expect(err.requestErrors).to.deep.equal([
-            {
-              type: 'form',
-              keyword: 'pattern',
-              dataPath: 'username',
-              message: 'invalid form (pattern, ^[a-zA-Z]\\w*$)',
-              schema: '^[a-zA-Z]\\w*$',
-              data: '123'
-            }
-          ])
+          expect(err.requestErrors[0]).to.deep.equal({
+            type: 'form',
+            keyword: 'pattern',
+            dataPath: '/username',
+            message: 'should match pattern "^[a-zA-Z]\\w*$"',
+            data: '123',
+            schema: '^[a-zA-Z]\\w*$'
+          })
 
           return next(err)
         })
 
-        var form = new FormData()
+        const form = new FormData()
         form.append('username', '123')
 
         return makeFetcher(app).fetch('/', {
@@ -1471,20 +1506,22 @@ describe('osprey method handler', function () {
       })
 
       it('should parse valid forms', function () {
-        var app = router()
+        const app = ospreyRouter()
+        const dt = new wp.model.domain.NodeShape()
+          .withName('schema')
+          .withProperties([
+            new wp.model.domain.PropertyShape()
+              .withName('username')
+              .withRange(
+                new wp.model.domain.ScalarShape()
+                  .withName('username')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#string')
+                  .withPattern('[a-zA-Z]\\w*')
+              )
+          ])
+        const method = makeRequestMethod('multipart/form-data', dt)
 
-        app.post('/', handler({
-          body: {
-            'multipart/form-data': {
-              formParameters: {
-                username: {
-                  type: 'string',
-                  pattern: '[a-zA-Z]\\w*'
-                }
-              }
-            }
-          }
-        }), function (req, res) {
+        app.post('/', ospreyMethodHandler(method), function (req, res) {
           req.form.on('field', function (name, value) {
             expect(name).to.equal('username')
             expect(value).to.equal('blakeembrey')
@@ -1495,7 +1532,7 @@ describe('osprey method handler', function () {
           req.pipe(req.form)
         })
 
-        var form = new FormData()
+        const form = new FormData()
         form.append('username', 'blakeembrey')
 
         return makeFetcher(app).fetch('/', {
@@ -1509,32 +1546,33 @@ describe('osprey method handler', function () {
           })
       })
 
-      it('should properly sanitize form values', function () {
-        var app = router()
+      it('should sanitize form values', function () {
+        const app = ospreyRouter()
+        const dt = new wp.model.domain.NodeShape()
+          .withName('schema')
+          .withProperties([
+            new wp.model.domain.PropertyShape()
+              .withName('someId')
+              .withRange(
+                new wp.model.domain.ScalarShape()
+                  .withName('someId')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#integer')
+              )
+          ])
+        const method = makeRequestMethod('multipart/form-data', dt)
 
-        app.post('/', handler({
-          body: {
-            'multipart/form-data': {
-              formParameters: {
-                number: {
-                  type: 'number'
-                }
-              }
-            }
-          }
-        }), function (req, res) {
+        app.post('/', ospreyMethodHandler(method), function (req, res) {
           req.form.on('field', function (name, value) {
-            expect(name).to.equal('number')
+            expect(name).to.equal('someId')
             expect(value).to.equal(12345)
-
             res.end('success')
           })
 
           req.pipe(req.form)
         })
 
-        var form = new FormData()
-        form.append('number', '12345')
+        const form = new FormData()
+        form.append('someId', '12345')
 
         return makeFetcher(app).fetch('/', {
           method: 'POST',
@@ -1546,64 +1584,78 @@ describe('osprey method handler', function () {
             expect(res.status).to.equal(200)
           })
       })
+      context('when root type is not an array', function () {
+        context('when repeated values are provided', function () {
+          it('should throw an error', function () {
+            const app = ospreyRouter()
+            const dt = new wp.model.domain.NodeShape()
+              .withName('schema')
+              .withProperties([
+                new wp.model.domain.PropertyShape()
+                  .withName('item')
+                  .withRange(
+                    new wp.model.domain.ScalarShape()
+                      .withName('item')
+                      .withDataType('http://www.w3.org/2001/XMLSchema#string')
+                  )
+              ])
+            const method = makeRequestMethod('multipart/form-data', dt)
 
-      it('should error with repeated values', function () {
-        var app = router()
-
-        app.post('/', handler({
-          body: {
-            'multipart/form-data': {
-              formParameters: {
-                item: {
-                  type: 'string'
-                }
+            app.post(
+              '/', ospreyMethodHandler(method),
+              function (req, res, next) {
+                req.form.on('error', next)
+                req.pipe(req.form)
               }
-            }
-          }
-        }), function (req, res, next) {
-          req.form.on('error', next)
+            )
 
-          req.pipe(req.form)
-        })
+            const form = new FormData()
+            form.append('item', 'abc')
+            form.append('item', '123')
 
-        var form = new FormData()
-        form.append('item', 'abc')
-        form.append('item', '123')
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          headers: form.getHeaders(),
-          body: form
-        })
-          .then(function (res) {
-            expect(res.status).to.equal(400)
+            return makeFetcher(app).fetch('/', {
+              method: 'POST',
+              headers: form.getHeaders(),
+              body: form
+            })
+              .then(function (res) {
+                expect(res.status).to.equal(400)
+              })
           })
+        })
       })
 
       it('should error if it did not receive all required values', function () {
-        var app = router()
+        const app = ospreyRouter()
+        const dt = new wp.model.domain.NodeShape()
+          .withName('schema')
+          .withProperties([
+            new wp.model.domain.PropertyShape()
+              .withMinCount(1)
+              .withName('item')
+              .withRange(
+                new wp.model.domain.ScalarShape()
+                  .withName('item')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#string')
+              ),
+            new wp.model.domain.PropertyShape()
+              .withMinCount(0)
+              .withName('more')
+              .withRange(
+                new wp.model.domain.ScalarShape()
+                  .withName('mode')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#string')
+              )
+          ])
+        const method = makeRequestMethod('multipart/form-data', dt)
 
-        app.post('/', handler({
-          body: {
-            'multipart/form-data': {
-              formParameters: {
-                item: {
-                  type: 'string',
-                  required: true
-                },
-                more: {
-                  type: 'string'
-                }
-              }
-            }
-          }
-        }), function (req, res, next) {
+        app.post('/', ospreyMethodHandler(method), function (req, res, next) {
           req.form.on('error', next)
 
           req.pipe(req.form)
         })
 
-        var form = new FormData()
+        const form = new FormData()
         form.append('more', '123')
 
         return makeFetcher(app).fetch('/', {
@@ -1617,46 +1669,53 @@ describe('osprey method handler', function () {
       })
 
       it('should allow files', function () {
-        var app = router()
+        const app = ospreyRouter()
+        const dt = new wp.model.domain.NodeShape()
+          .withName('schema')
+          .withProperties([
+            new wp.model.domain.PropertyShape()
+              .withName('contents')
+              .withRange(
+                new wp.model.domain.FileShape()
+                  .withName('contents')
+                  .withFileTypes(['*/*'])
+              ),
+            new wp.model.domain.PropertyShape()
+              .withMinCount(0)
+              .withName('filename')
+              .withRange(
+                new wp.model.domain.ScalarShape()
+                  .withName('filename')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#string')
+              )
+          ])
+        const method = makeRequestMethod('multipart/form-data', dt)
 
-        app.post('/', handler({
-          body: {
-            'multipart/form-data': {
-              formParameters: {
-                contents: {
-                  type: 'file',
-                  fileTypes: ['*/*']
-                },
-                filename: {
-                  type: 'string'
-                }
-              }
-            }
-          }
-        }), function (req, res) {
+        app.post('/', ospreyMethodHandler(method), function (req, res) {
           req.form.on('field', function (name, value) {
             expect(name).to.equal('filename')
             expect(value).to.equal('LICENSE')
           })
 
-          req.form.on('file', function (name, stream) {
+          req.form.on('file', async function (name, stream) {
             expect(name).to.equal('contents')
-
-            streamEqual(
-              stream,
-              fs.createReadStream(join(__dirname, '..', 'LICENSE')),
-              function (err, equal) {
-                expect(equal).to.equal(true)
-
-                return err ? res.end() : res.end('success')
-              }
-            )
+            var equal = false
+            try {
+              equal = await streamEqual(
+                stream,
+                fs.createReadStream(join(__dirname, '..', 'LICENSE'))
+              )
+              res.end('success')
+            } catch (err) {
+              res.end()
+            }
+            expect(equal).to.equal(true)
           })
 
           req.pipe(req.form)
         })
 
-        var form = new FormData()
+        const form = new FormData()
         form.append('contents', fs.createReadStream(join(__dirname, '..', 'LICENSE')))
         form.append('filename', 'LICENSE')
 
@@ -1671,21 +1730,22 @@ describe('osprey method handler', function () {
           })
       })
 
-      it('should ignore unknown files and fields (RAML 0.8)', function () {
-        var app = router()
+      it('should ignore unknown files and fields', function () {
+        const app = ospreyRouter()
+        const dt = new wp.model.domain.NodeShape()
+          .withName('schema')
+          .withProperties([
+            new wp.model.domain.PropertyShape()
+              .withName('file')
+              .withRange(
+                new wp.model.domain.FileShape().withName('file')
+              )
+          ])
+        const method = makeRequestMethod('multipart/form-data', dt)
 
-        app.post('/', handler({
-          body: {
-            'multipart/form-data': {
-              formParameters: {
-                file: {
-                  type: 'file'
-                }
-              }
-            }
-          }
-        }, '/', 'POST', { RAMLVersion: 'RAML08' }), function (req, res) {
-          var callCount = 0
+        const middleware = ospreyMethodHandler(method, '/', 'POST')
+        app.post('/', middleware, function (req, res) {
+          let callCount = 0
 
           function called (name, value) {
             callCount++
@@ -1710,7 +1770,7 @@ describe('osprey method handler', function () {
           req.pipe(req.form)
         })
 
-        var form = new FormData()
+        const form = new FormData()
         form.append('file', fs.createReadStream(join(__dirname, '..', 'LICENSE')))
         form.append('another', fs.createReadStream(join(__dirname, '..', 'README.md')))
         form.append('random', 'hello world')
@@ -1729,15 +1789,21 @@ describe('osprey method handler', function () {
 
     describe('unknown', function () {
       it('should reject unknown request types', function () {
-        var app = router()
+        const app = ospreyRouter()
+        const dt = new wp.model.domain.NodeShape()
+          .withName('schema')
+          .withProperties([
+            new wp.model.domain.PropertyShape()
+              .withName('items')
+              .withRange(
+                new wp.model.domain.ScalarShape()
+                  .withName('items')
+                  .withDataType('http://www.w3.org/2001/XMLSchema#boolean')
+              )
+          ])
+        const method = makeRequestMethod('application/json', dt)
 
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              schema: '{"items":{"type":"boolean"}}'
-            }
-          }
-        }))
+        app.post('/', ospreyMethodHandler(method))
 
         return makeFetcher(app).fetch('/', {
           method: 'POST',
@@ -1750,73 +1816,97 @@ describe('osprey method handler', function () {
             expect(res.status).to.equal(415)
           })
       })
+      context('when defined', function () {
+        it('should pass unknown bodies through', function () {
+          const app = ospreyRouter()
 
-      it('should pass unknown bodies through when defined', function () {
-        var app = router()
+          const dt = new wp.model.domain.NilShape()
+          const method = makeRequestMethod('text/html', dt)
 
-        app.post('/', handler({
-          body: {
-            'text/html': null
-          }
-        }), function (req, res) {
-          res.end('success')
-        })
-
-        return makeFetcher(app).fetch('/', {
-          method: 'POST',
-          body: 'test',
-          headers: {
-            'Content-Type': 'text/html'
-          }
-        })
-          .then(function (res) {
-            expect(res.body).to.equal('success')
-            expect(res.status).to.equal(200)
+          app.post('/', ospreyMethodHandler(method), function (req, res) {
+            res.end('success')
           })
+
+          return makeFetcher(app).fetch('/', {
+            method: 'POST',
+            body: 'test',
+            headers: {
+              'Content-Type': 'text/html'
+            }
+          })
+            .then(function (res) {
+              expect(res.body).to.equal('success')
+              expect(res.status).to.equal(200)
+            })
+        })
       })
     })
 
     describe('multiple', function () {
       it('should parse as the correct content type', function () {
-        var app = router()
+        const app = ospreyRouter()
+        const method = new wp.model.domain.Operation()
+          .withMethod('GET')
+          .withRequest(
+            new wp.model.domain.Request().withPayloads([
+              new wp.model.domain.Payload()
+                .withMediaType('application/json')
+                .withSchema(
+                  new wp.model.domain.NodeShape()
+                    .withName('schema')
+                    .withProperties([
+                      new wp.model.domain.PropertyShape()
+                        .withMinCount(1)
+                        .withName('items')
+                        .withRange(
+                          new wp.model.domain.ScalarShape()
+                            .withName('items')
+                            .withDataType('http://www.w3.org/2001/XMLSchema#string')
+                        )
+                    ])
+                ),
+              new wp.model.domain.Payload()
+                .withMediaType('multipart/form-data')
+                .withSchema(
+                  new wp.model.domain.NodeShape()
+                    .withName('schema')
+                    .withProperties([
+                      new wp.model.domain.PropertyShape()
+                        .withMinCount(1)
+                        .withName('items')
+                        .withRange(
+                          new wp.model.domain.ArrayShape()
+                            .withItems(
+                              new wp.model.domain.ScalarShape()
+                                .withName('items')
+                                .withDataType('http://www.w3.org/2001/XMLSchema#string')
+                            )
+                        )
+                    ])
+                )
+            ])
+          )
 
-        app.post('/', handler({
-          body: {
-            'application/json': {
-              schema: '{"properties":{"items":{"type":"string"}}' +
-                ',"required":["items"]}'
-            },
-            'multipart/form-data': {
-              formParameters: {
-                items: {
-                  type: 'boolean',
-                  repeat: true
-                }
-              }
-            }
-          }
-        }, '/', 'POST', { RAMLVersion: 'RAML08' }), function (req, res) {
-          var callCount = 0
+        const middleware = ospreyMethodHandler(method, '/', 'POST')
+        app.post('/', middleware, function (req, res) {
+          let callCount = 0
 
           req.form.on('field', function (name, value) {
             callCount++
-
             expect(name).to.equal('items')
-            expect(value).to.equal(callCount === 1)
           })
 
           req.form.on('finish', function () {
             expect(callCount).to.equal(2)
-
             res.end('success')
           })
 
           req.pipe(req.form)
         })
 
-        var form = new FormData()
-        form.append('items', 'true')
-        form.append('items', 'false')
+        const form = new FormData()
+        form.append('items', 'foo')
+        form.append('items', 'bar')
 
         return makeFetcher(app).fetch('/', {
           method: 'POST',
@@ -1832,13 +1922,14 @@ describe('osprey method handler', function () {
 
     describe('empty', function () {
       it('should discard empty request bodies', function () {
-        var app = router()
+        const app = ospreyRouter()
 
-        app.post('/', handler({}), function (req, res) {
+        const middleware = ospreyMethodHandler(new wp.model.domain.Operation())
+        app.post('/', middleware, function (req, res) {
           return req._readableState.ended ? res.end() : req.pipe(res)
         })
 
-        var form = new FormData()
+        const form = new FormData()
         form.append('file', fs.createReadStream(join(__dirname, 'index.js')))
 
         return makeFetcher(app).fetch('/', {
@@ -1854,11 +1945,13 @@ describe('osprey method handler', function () {
     })
 
     it('should disable discard empty request', function () {
-      var app = router()
+      const app = ospreyRouter()
 
+      const middleware = ospreyMethodHandler(
+        null, '/', 'POST', { discardUnknownBodies: false })
       app.post(
         '/',
-        handler(null, '/', 'POST', { discardUnknownBodies: false }),
+        middleware,
         function (req, res) {
           return req.pipe(res)
         }
@@ -1877,18 +1970,16 @@ describe('osprey method handler', function () {
 
   describe('wildcard', function () {
     it('should accept any body', function () {
-      var app = router()
+      const app = ospreyRouter()
+      const dt = new wp.model.domain.NilShape()
+      const method = makeRequestMethod('*/*', dt)
 
-      app.post('/', handler({
-        body: {
-          '*/*': null
-        }
-      }, '/', 'POST'), function (req, res) {
-        return req.pipe(res)
+      const middleware = ospreyMethodHandler(method, '/', 'POST')
+      app.post('/', middleware, function (req, res, next) {
+        req.pipe(res)
       })
-
-      var form = new FormData()
-      form.append('file', fs.createReadStream(join(__dirname, 'index.js')))
+      const form = new FormData()
+      form.append('foobar', 'hello world')
 
       return makeFetcher(app).fetch('/', {
         body: form,
@@ -1896,6 +1987,7 @@ describe('osprey method handler', function () {
         method: 'POST'
       })
         .then(function (res) {
+          expect(res.body).to.contain('hello world')
           expect(typeof res.body).to.equal('string')
           expect(res.status).to.equal(200)
         })
@@ -1903,19 +1995,26 @@ describe('osprey method handler', function () {
   })
 
   describe('accept', function () {
+    function makeResponseMethod (ct, schema, code) {
+      return new wp.model.domain.Operation()
+        .withMethod('GET')
+        .withResponses([
+          new wp.model.domain.Response()
+            .withStatusCode(code)
+            .withPayloads([
+              new wp.model.domain.Payload()
+                .withMediaType(ct)
+                .withSchema(schema)
+            ])
+        ])
+    }
+
     it('should reject requests with invalid accept headers', function () {
-      var app = router()
+      const app = ospreyRouter()
+      const dt = new wp.model.domain.NilShape()
+      const method = makeResponseMethod('text/html', dt, '200')
 
-      app.get('/', handler({
-        responses: {
-          200: {
-            body: {
-              'text/html': null
-            }
-          }
-        }
-      }))
-
+      app.get('/', ospreyMethodHandler(method))
       return makeFetcher(app).fetch('/', {
         method: 'GET',
         headers: {
@@ -1928,17 +2027,11 @@ describe('osprey method handler', function () {
     })
 
     it('should accept requests with valid accept headers', function () {
-      var app = router()
+      const app = ospreyRouter()
+      const dt = new wp.model.domain.NilShape()
+      const method = makeResponseMethod('text/html', dt, '200')
 
-      app.get('/', handler({
-        responses: {
-          200: {
-            body: {
-              'text/html': null
-            }
-          }
-        }
-      }), function (req, res) {
+      app.get('/', ospreyMethodHandler(method), function (req, res) {
         expect(req.headers.accept).to.equal('application/json, text/html')
 
         res.end('success')
@@ -1957,15 +2050,11 @@ describe('osprey method handler', function () {
     })
 
     it('should accept anything without response types', function () {
-      var app = router()
-
-      app.get('/', handler({
-        responses: {
-          200: {
-            body: {}
-          }
-        }
-      }), function (req, res) {
+      const app = ospreyRouter()
+      const dt = new wp.model.domain.NodeShape()
+      const method = makeResponseMethod('text/html', dt, '200')
+      method.responses[0].withPayloads([])
+      app.get('/', ospreyMethodHandler(method), function (req, res) {
         expect(req.headers.accept).to.equal('foo/bar')
 
         res.end('success')
@@ -1981,6 +2070,47 @@ describe('osprey method handler', function () {
           expect(res.body).to.equal('success')
           expect(res.status).to.equal(200)
         })
+    })
+  })
+})
+
+describe('nodeShapeFromParams', function () {
+  const nodeShapeFromParams = rewire('../').__get__('nodeShapeFromParams')
+  it('should construct a NodeShape from an array of Parameter', async function () {
+    const params = [
+      new wp.model.domain.Parameter()
+        .withName('a')
+        .withRequired(true)
+        .withSchema(
+          new wp.model.domain.ScalarShape()
+            .withName('schema')
+            .withDataType('http://www.w3.org/2001/XMLSchema#string')
+            .withPattern('$helloworld^')
+        ),
+      new wp.model.domain.Parameter()
+        .withName('b')
+        .withRequired(true)
+        .withSchema(
+          new wp.model.domain.ScalarShape()
+            .withName('schema')
+            .withDataType('http://www.w3.org/2001/XMLSchema#integer')
+        )
+    ]
+    const shape = await nodeShapeFromParams(params)
+    expect(shape).to.be.instanceof(wp.model.domain.NodeShape)
+    expect(JSON.parse(shape.toJsonSchema)).to.deep.equal({
+      $ref: '#/definitions/schema',
+      $schema: 'http://json-schema.org/draft-04/schema#',
+      definitions: {
+        schema: {
+          properties: {
+            a: { pattern: '$helloworld^', type: 'string' },
+            b: { type: 'integer' }
+          },
+          required: ['a', 'b'],
+          type: 'object'
+        }
+      }
     })
   })
 })

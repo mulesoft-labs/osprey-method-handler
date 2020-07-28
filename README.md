@@ -37,37 +37,29 @@ npm install osprey-method-handler --save
 ## Usage
 
 ```js
-var express = require('express')
-var handler = require('osprey-method-handler')
-var app = express()
+const express = require('express')
+const handler = require('osprey-method-handler')
+const utils = require('./utils')
 
-app.post('/users', handler({
-  headers: {},
-  responses: {
-    '200': {
-      body: {
-        'application/json': {
-          schema: '...',
-          example: '...'
-        }
-      }
-    }
-  },
-  body: {
-    'application/json': {
-      schema: '...'
-    }
+const app = express()
+
+// webapi-parser.Operation
+const methodObj = utils.getMethodObj()
+const options = {}
+
+app.post(
+  '/users',
+  handler(methodObj, '/users', 'POST', options),
+  function (req, res) {
+    res.send('success')
   }
-}, '/users', 'POST', { /* ... */ }), function (req, res) {
-  res.send('success')
-})
+)
 ```
-
-Accepts the RAML schema as the first argument, method and path in subsequent arguments (mostly for debugging) and options as the final argument.
+Accepts [webapi-parser](https://github.com/raml-org/webapi-parser) `Operation` object as first argument, path string as second argument, method name as third and options object as final argument.
 
 **Options**
 
-* `ajv` Custom [Ajv](https://github.com/epoberezkin/ajv) instance to be used for JSON validation
+* `ajv` Custom [Ajv](https://github.com/epoberezkin/ajv) instance to be used to validate query strings, request headers and request bodied (url-encoded, form-data, json)
 * `discardUnknownBodies` Discard undefined request streams (default: `true`)
 * `discardUnknownQueryParameters` Discard undefined query parameters (default: `true`)
 * `discardUnknownHeaders` Discard undefined header parameters (always includes known headers) (default: `true`)
@@ -76,32 +68,19 @@ Accepts the RAML schema as the first argument, method and path in subsequent arg
 * `limit` The [maximum bytes](https://github.com/expressjs/body-parser#limit-2) for XML, JSON and URL-encoded endpoints (default: `'100kb'`)
 * `parameterLimit` The [maximum number](https://github.com/expressjs/body-parser#parameterlimit) of URL-encoded parameters (default: `1000`)
 * `busboyLimits` The multipart limits defined by [Busboy](https://github.com/mscdex/busboy#busboy-methods)
-* `RAMLVersion` The RAML version passed to [raml-validate](https://github.com/mulesoft/node-raml-validate) (default: `'RAML08'`)
 
 ### Adding JSON schemas
 
 If you are using external JSON schemas with `$ref`, you can add them to the module before you compile the middleware. Use `handler.addJsonSchema(schema, key)` to compile automatically when used.
 
 `handler.addJsonSchema()` accepts a third (optional) `options` argument. Supported `options` are:
-* `ajv` Custom [Ajv](https://github.com/epoberezkin/ajv) instance. E.g. `handler.addJsonSchema(schema, key, {ajv: myAjvInstance})`. The provided ajv instance can later be passed as an option to the handler to perform JSON validation.
+* `ajv` Custom [Ajv](https://github.com/epoberezkin/ajv) instance. E.g. `handler.addJsonSchema(schema, key, {ajv: myAjvInstance})`. The provided ajv instance can later be passed as an option to the handler to perform validation.
 
 ### Validation Errors
 
 The library intercepts incoming requests and does validation. It will respond with `400`, `406` or `415` error instances from [http-errors](https://github.com/jshttp/http-errors). Validation errors are attached to `400` instances and noted using `ramlValidation = true` and `requestErrors = []` (an array of errors that were found, compatible with [request-error-handler](https://github.com/mulesoft-labs/node-request-error-handler)).
 
-The errors object format is:
-
-```ts
-interface Error {
-  type: 'json' | 'form' | 'headers' | 'query' | 'xml'
-  message: string
-  keyword: string
-  dataPath: string
-  data: any
-  schema: any
-  meta?: Object
-}
-```
+See [the code](https://github.com/mulesoft-labs/osprey-method-handler/blob/7adb162035e4e593a5bbda8b3e83b1996adc2174/osprey-method-handler.js#L705-L751) for a complete list of errors formats.
 
 **Please note:** XML validation does not have a way to get the `keyword`, `dataPath`, `data` or `schema`. Instead, it has a `meta` object that contains information from `libxmljs` (`domain`, `code`, `level`, `column`, `line`).
 
